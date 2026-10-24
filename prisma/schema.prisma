@@ -1,0 +1,163 @@
+// EventPilot AI - Relational Database Schema
+// Optimized for SQLite ACID transactions, strict relational integrity, and zero-config deployment
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String
+  role      String   @default("ORGANIZER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  events    Event[]
+}
+
+model Event {
+  id                 String        @id @default(uuid())
+  userId             String
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  eventName          String
+  eventType          String        // WEDDING, BIRTHDAY, ANNIVERSARY, CORPORATE, etc.
+  eventDate          String        // YYYY-MM-DD ISO format
+  location           String
+  guestCount         Int           @default(50)
+  totalBudget        Float         @default(10000.0)
+  currency           String        @default("USD")
+  status             String        @default("PLANNING") // PLANNING, CONFIRMED, COMPLETED, CANCELLED
+  themeOrStyle       String?
+  formality          String        @default("SEMI_FORMAL") // CASUAL, SEMI_FORMAL, FORMAL, BLACK_TIE
+  indoorOutdoor      String        @default("HYBRID") // INDOOR, OUTDOOR, HYBRID
+  culturalTraditions String?
+  dietaryNotes       String?
+  specialConstraints String?
+  conceptJson        String?       // JSON string of generated Concept, ColorPalette, Styling
+  contingenciesJson  String?       // JSON string of contingency plans
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  budgetItems        BudgetItem[]
+  tasks              Task[]
+  vendors            VendorQuote[]
+  guests             Guest[]
+  activityLogs       ActivityLog[]
+
+  @@index([userId])
+}
+
+model BudgetItem {
+  id                String   @id @default(uuid())
+  eventId           String
+  event             Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  category          String   // VENUE, CATERING, PHOTOGRAPHY, etc.
+  description       String
+  estimatedQuantity Int      @default(1)
+  estimatedUnitCost Float    @default(0.0)
+  taxRatePercent    Float    @default(0.0)
+  additionalFees    Float    @default(0.0)
+  actualCost        Float?
+  depositPaid       Float    @default(0.0)
+  priority          String   @default("RECOMMENDED") // ESSENTIAL, RECOMMENDED, OPTIONAL
+  notes             String?
+  provenance        String   @default("APPLICATION_CALCULATED") // USER_ENTERED, AI_GENERATED, etc.
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+model Task {
+  id              String   @id @default(uuid())
+  eventId         String
+  event           Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  category        String   @default("GENERAL")
+  priority        String   @default("MEDIUM") // LOW, MEDIUM, HIGH, CRITICAL
+  status          String   @default("NOT_STARTED") // NOT_STARTED, IN_PROGRESS, COMPLETED, BLOCKED, CANCELLED
+  daysBeforeEvent Int      @default(30)
+  dueDate         String   // YYYY-MM-DD
+  assigneeName    String?
+  provenance      String   @default("APPLICATION_CALCULATED")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  dependencies    TaskDependency[] @relation("DependentTask")
+  prerequisites   TaskDependency[] @relation("PrerequisiteTask")
+
+  @@index([eventId])
+}
+
+model TaskDependency {
+  id                 String @id @default(uuid())
+  taskId             String
+  task               Task   @relation("DependentTask", fields: [taskId], references: [id], onDelete: Cascade)
+  dependsOnTaskId    String
+  dependsOnTask      Task   @relation("PrerequisiteTask", fields: [dependsOnTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, dependsOnTaskId])
+  @@index([taskId])
+  @@index([dependsOnTaskId])
+}
+
+model VendorQuote {
+  id                 String   @id @default(uuid())
+  eventId            String
+  event              Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  vendorName         String
+  category           String
+  contactPerson      String?
+  contactEmail       String?
+  contactPhone       String?
+  status             String   @default("IDENTIFIED") // IDENTIFIED, INQUIRY_SENT, QUOTE_RECEIVED, CONTRACT_PENDING, DEPOSIT_PAID, CONFIRMED, DECLINED
+  quotedAmount       Float?
+  depositRequired    Float?
+  cancellationPolicy String?
+  deliverablesJson   String?  // JSON array of deliverables
+  notes              String?
+  provenance         String   @default("USER_ENTERED")
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+model Guest {
+  id                  String   @id @default(uuid())
+  eventId             String
+  event               Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  firstName           String
+  lastName            String
+  email               String?
+  phone               String?
+  householdGroup      String?
+  dietaryRequirements String?
+  accessibilityNeeds  String?
+  rsvpStatus          String   @default("INVITED") // INVITED, ATTENDING, DECLINED, TENTATIVE
+  plusOneAllowed      Boolean  @default(false)
+  plusOneName         String?
+  isAttendingPlusOne  Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([eventId])
+}
+
+model ActivityLog {
+  id         String   @id @default(uuid())
+  eventId    String
+  event      Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  action     String   // e.g. "EVENT_CREATED", "BUDGET_ITEM_ADDED", "TASK_COMPLETED", etc.
+  details    String   // Description of change
+  provenance String   @default("USER_ENTERED")
+  createdAt  DateTime @default(now())
+
+  @@index([eventId])
+}
