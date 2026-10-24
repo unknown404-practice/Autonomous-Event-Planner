@@ -88,7 +88,7 @@ DO NOT include markdown backticks like \`\`\`json. Return pure JSON.`;
   // 1. Try OpenRouter API first if key configured
   if (openRouterKey && openRouterKey.trim() !== "") {
     try {
-      const model = process.env.OPENROUTER_MODEL || "meta-llama/llama-3.3-70b-instruct:free";
+      const model = process.env.OPENROUTER_MODEL || "openrouter/free";
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 25000); // 25s timeout
