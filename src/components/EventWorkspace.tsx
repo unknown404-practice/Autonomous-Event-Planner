@@ -40,6 +40,7 @@ import {
   MapPin,
   Palette,
   Plus,
+  Printer,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -257,13 +258,40 @@ export function EventWorkspace({ event }: WorkspaceProps) {
           Back to Events
         </Link>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/events/${event.id}/print/run-sheet`}
+            target="_blank"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm"
+          >
+            <Printer className="w-3.5 h-3.5 text-indigo-500" />
+            Vendor Run Sheet (PDF)
+          </Link>
+
+          <Link
+            href={`/events/${event.id}/print/catering-specs`}
+            target="_blank"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm"
+          >
+            <Printer className="w-3.5 h-3.5 text-emerald-500" />
+            Kitchen Catering Specs (PDF)
+          </Link>
+
+          <Link
+            href={`/events/${event.id}/print/guest-invitations`}
+            target="_blank"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 shadow-sm"
+          >
+            <Printer className="w-3.5 h-3.5 text-blue-500" />
+            Invitation List Printout
+          </Link>
+
           <button
             onClick={() => setModalOpen("reschedule")}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             <Calendar className="w-3.5 h-3.5 text-indigo-500" />
-            Reschedule Event
+            Reschedule
           </button>
         </div>
       </div>
@@ -778,13 +806,23 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                 Truthful booking state machine. Suggested vendors are never represented as booked without confirmation.
               </p>
             </div>
-            <button
-              onClick={() => setModalOpen("vendor")}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Add Vendor Quote
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/events/${event.id}/print/run-sheet`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold shadow-sm transition-all"
+              >
+                <Printer className="w-3.5 h-3.5 text-indigo-500" />
+                Print Run Sheet (PDF)
+              </Link>
+              <button
+                onClick={() => setModalOpen("vendor")}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Add Vendor Quote
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -853,13 +891,23 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                 Track attendees, dietary requirements, and accessibility accommodations.
               </p>
             </div>
-            <button
-              onClick={() => setModalOpen("guest")}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Add Guest
-            </button>
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/events/${event.id}/print/guest-invitations`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold shadow-sm transition-all"
+              >
+                <Printer className="w-3.5 h-3.5 text-blue-500" />
+                Print Invitation List
+              </Link>
+              <button
+                onClick={() => setModalOpen("guest")}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all"
+              >
+                <Plus className="w-4 h-4" />
+                Add Guest
+              </button>
+            </div>
           </div>
 
           {/* Dietary Summary Banner */}

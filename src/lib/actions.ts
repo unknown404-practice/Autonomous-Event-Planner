@@ -63,6 +63,7 @@ export async function getEventById(eventId: string) {
     const event = await prisma.event.findUnique({
       where: { id: eventId },
       include: {
+        user: true,
         budgetItems: {
           orderBy: { createdAt: "asc" },
         },
