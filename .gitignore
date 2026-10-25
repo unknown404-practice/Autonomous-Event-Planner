@@ -1,35 +1,97 @@
-# Node modules
-node_modules/
+# ==============================================================================
+# EventPilot AI - Git Ignore Policy
+# Protects local device credentials, secrets, SQLite databases, logs, and caches
+# ==============================================================================
 
-# Next.js build output
+# Node dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js build artifacts & compiler cache
 .next/
 out/
-*.tsbuildinfo
-
-# Production
 build/
 dist/
+*.tsbuildinfo
 
-# SQLite databases & temp files
+# SQLite databases, transaction journals, and WAL files
 *.db
 *.db-journal
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
+dev.db*
 prisma/*.db
 prisma/*.db-journal
+prisma/*.db-shm
+prisma/*.db-wal
+prisma/dev.db*
 
-# Environment files
+# Environment secrets, credentials & tokens
 .env
 .env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .env.production
-.env.*.local
+.env.staging
+.env.dev
+.env.backup
+.env.*
+!.env.example
 
-# Logs
+# Private cryptographic keys, certificates & credentials
+*.pem
+*.key
+*.crt
+*.cert
+*.pfx
+*.p12
+id_rsa*
+id_ed25519*
+*.pub
+credentials.json
+client_secret*.json
+service-account*.json
+
+# Runtime logs and debugging dumps
+*.log
+logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 .pnpm-debug.log*
 
-# OS metadata
+# Test coverage output & test cache
+coverage/
+.nyc_output/
+.vitest/
+
+# OS and filesystem artifacts
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# IDE & Editor configurations
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*~
+
+# Temporary scratch and agent workspaces
+scratch/
+.gemini/
+*.tmp
+*.temp

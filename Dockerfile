@@ -46,9 +46,6 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
 
-# Copy existing dev.db for automatic initialization of persistent volume
-COPY dev.db* ./
-
 RUN chmod +x ./docker-entrypoint.sh
 RUN mkdir -p /app/data
 
