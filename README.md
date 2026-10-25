@@ -163,7 +163,7 @@ npx prisma db push
 # 6. Start Next.js development server
 npm run dev
 ```
-Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+Open `http://localhost:3000` in your browser.
 
 ---
 
@@ -356,7 +356,7 @@ npm run db:studio
 
 ## 🌐 Official Repository
 
-- **GitHub Repository**: [https://github.com/unknown404-practice/Autonomous-Event-Planner.git](https://github.com/unknown404-practice/Autonomous-Event-Planner.git)
+- **GitHub Repository**: `https://github.com/unknown404-practice/Autonomous-Event-Planner.git`
 
 ---
 
@@ -365,8 +365,8 @@ npm run db:studio
 For technical inquiries, enterprise deployments, or collaboration:
 
 - **Lead Developer & Maintainer**: **Ranadeep Saha**
-- **Email**: [ranadeep2021saha@gmail.com](mailto:ranadeep2021saha@gmail.com)
-- **LinkedIn**: [https://www.linkedin.com/in/ranadeep-saha-a03296404](https://www.linkedin.com/in/ranadeep-saha-a03296404)
+- **Email**: ranadeep2021saha@gmail.com
+- **LinkedIn**: www.linkedin.com/in/ranadeep-saha-a03296404
 
 ---
 
