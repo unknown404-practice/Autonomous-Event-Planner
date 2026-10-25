@@ -12,8 +12,6 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - DATABASE_URL=file:/app/data/dev.db
-      - OPENROUTER_API_KEY=sk-or-v1-redacted-for-security
-      - OPENROUTER_MODEL=openrouter/free
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - OLLAMA_MODEL=gemma:2b
     volumes:

@@ -89,7 +89,7 @@ export default function SpecsPage() {
       title: "Competition-Focused Excellence",
       status: "VERIFIED",
       details:
-        "OpenRouter API integrated with free tier models (e.g. Llama 3.3 70B Free). Zero payment processor requirements. Physical PDF run sheets and catering specs for on-site operations.",
+        "Locally hosted Ollama Gemma 2B model integration. Zero external API payment requirements. Physical PDF run sheets and catering specs for on-site operations.",
     },
     {
       num: 12,
@@ -254,7 +254,7 @@ export default function SpecsPage() {
           <motion.div whileHover={{ y: -2 }} className="p-4 border rounded-2xl border-slate-200 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/20">
             <ProvenanceBadge provenance="AI_GENERATED" size="md" />
             <p className="mt-2 text-slate-500">
-              Produced by Google Gemini or OpenRouter with low-temperature structured generation. Always treated as an unconfirmed recommendation until verified.
+              Produced by local Ollama Gemma 2B with low-temperature structured generation. Always treated as an unconfirmed recommendation until verified.
             </p>
           </motion.div>
 

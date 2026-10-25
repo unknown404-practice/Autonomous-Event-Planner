@@ -1174,10 +1174,10 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                     Active Architecture Rules:
                   </div>
                   <p className="text-slate-500">
-                    1. When <code className="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded font-mono">GEMINI_API_KEY</code> or OpenRouter is configured, structured JSON is verified against strict Zod schemas.
+                    1. Powered locally by Ollama <code className="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded font-mono">gemma:2b</code> with structured JSON verified against strict Zod schemas.
                   </p>
                   <p className="text-slate-500">
-                    2. If offline or unconfigured, EventPilot seamlessly activates the deterministic expert heuristic rules engine with identical typed data contracts.
+                    2. If Ollama is offline or unconfigured, EventPilot seamlessly activates the deterministic expert heuristic rules engine with identical typed data contracts.
                   </p>
                 </div>
               </div>
