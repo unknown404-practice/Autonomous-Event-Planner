@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
+import Link from "next/link";
+import { motion } from "framer-motion";
 import { createEvent } from "@/lib/actions";
 import { EventType, PlanGenerationInput } from "@/lib/types";
 import {
@@ -15,40 +18,53 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import Link from "next/link";
 
-const EVENT_TYPES: Array<{ value: EventType; label: string }> = [
-  { value: "WEDDING", label: "Wedding" },
-  { value: "BIRTHDAY", label: "Birthday Milestone" },
-  { value: "ANNIVERSARY", label: "Anniversary" },
-  { value: "CORPORATE", label: "Corporate Gathering" },
-  { value: "CONFERENCE", label: "Conference / Summit" },
-  { value: "COMMUNITY", label: "Community Celebration" },
-  { value: "FESTIVAL", label: "Festival / Exhibition" },
-  { value: "DINNER_PARTY", label: "Private Dinner Party" },
-  { value: "OTHER", label: "Other Special Event" },
+const EVENT_TYPES: Array<{ value: EventType; label: string; defaultStyle: string }> = [
+  { value: "WEDDING", label: "Wedding", defaultStyle: "Modern Botanical Elegance" },
+  { value: "BIRTHDAY", label: "Birthday Milestone", defaultStyle: "Vibrant & Warm Celebration" },
+  { value: "ANNIVERSARY", label: "Anniversary", defaultStyle: "Timeless Intimate Romance" },
+  { value: "CORPORATE", label: "Corporate Gathering", defaultStyle: "Modern Executive Innovation" },
+  { value: "CONFERENCE", label: "Conference / Summit", defaultStyle: "Tech-Forward Collaborative" },
+  { value: "COMMUNITY", label: "Community Celebration", defaultStyle: "Festive & Inclusive" },
+  { value: "FESTIVAL", label: "Festival / Exhibition", defaultStyle: "Artisan & Experiential" },
+  { value: "DINNER_PARTY", label: "Private Dinner Party", defaultStyle: "Atmospheric Candlelit Feast" },
+  { value: "OTHER", label: "Other Special Event", defaultStyle: "Custom Concept" },
 ];
 
-export default function NewEventPage() {
+function NewEventForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialType = (searchParams.get("type") as EventType) || "WEDDING";
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<PlanGenerationInput>({
     eventName: "",
-    eventType: "WEDDING",
+    eventType: initialType,
     eventDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
     location: "",
-    guestCount: 100,
-    totalBudget: 25000,
+    guestCount: initialType === "CORPORATE" ? 150 : 100,
+    totalBudget: initialType === "CORPORATE" ? 50000 : 25000,
     currency: "USD",
     themeOrStyle: "Modern Botanical Elegance",
-    formality: "FORMAL",
+    formality: initialType === "CORPORATE" ? "FORMAL" : "SEMI_FORMAL",
     indoorOutdoor: "HYBRID",
     culturalTraditions: "",
     dietaryNotes: "",
     specialConstraints: "",
   });
+
+  useEffect(() => {
+    const matched = EVENT_TYPES.find((t) => t.value === initialType);
+    if (matched) {
+      setFormData((prev) => ({
+        ...prev,
+        eventType: initialType,
+        themeOrStyle: matched.defaultStyle,
+      }));
+    }
+  }, [initialType]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -57,6 +73,15 @@ export default function NewEventPage() {
     setFormData((prev) => ({
       ...prev,
       [name]: type === "number" ? Math.max(0, Number(value)) : value,
+    }));
+  };
+
+  const handleTypeSelect = (typeValue: EventType) => {
+    const matched = EVENT_TYPES.find((t) => t.value === typeValue);
+    setFormData((prev) => ({
+      ...prev,
+      eventType: typeValue,
+      themeOrStyle: matched?.defaultStyle || prev.themeOrStyle,
     }));
   };
 
@@ -93,48 +118,92 @@ export default function NewEventPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8 w-full">
-      <Link
-        href="/"
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-6 transition-colors"
-      >
-        <ArrowLeft className="w-3.5 h-3.5" />
-        Back to Dashboard
-      </Link>
+    <motion.div
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="max-w-4xl mx-auto px-4 py-8 w-full"
+    >
+      <motion.div whileHover={{ x: -2 }} className="inline-block mb-6">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          <span>Back to Dashboard</span>
+        </Link>
+      </motion.div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6 sm:p-10 shadow-sm">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-bold">
-            <Sparkles className="w-5 h-5" />
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 rounded-3xl p-6 sm:p-10 shadow-sm">
+        {/* Header with App Icon */}
+        <div className="flex items-start gap-4 mb-8">
+          <div className="w-12 h-12 rounded-2xl bg-slate-900 dark:bg-white flex items-center justify-center p-2.5 shadow-sm ring-1 ring-slate-900/10 dark:ring-white/20 shrink-0">
+            <Image
+              src="/app-icon.png"
+              alt="EventPilot"
+              width={32}
+              height={32}
+              className="w-full h-full object-contain invert dark:invert-0"
+            />
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              Initialize New Event Project
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+              Create New Event
             </h1>
-            <p className="text-xs text-slate-500">
-              EventPilot AI will generate a tailored concept, itemized budget breakdown, and milestone schedule.
+            <p className="text-sm text-slate-500 mt-1">
+              Provide basic details and EventPilot will prepare your milestone schedule, initial budget, and vendor checklists.
             </p>
           </div>
         </div>
 
         {errorMsg && (
-          <div className="mt-4 p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg text-xs font-medium text-rose-700 dark:text-rose-300">
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 rounded-xl text-xs font-medium text-rose-700 dark:text-rose-300"
+          >
             {errorMsg}
-          </div>
+          </motion.div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-6">
-          {/* Section 1: Essentials */}
+        <form onSubmit={handleSubmit} className="space-y-8">
+          {/* Section 1: Event Type Selector */}
           <div>
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4 flex items-center gap-2">
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3">
+              Event Category
+            </label>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              {EVENT_TYPES.map((type) => {
+                const isSelected = formData.eventType === type.value;
+                return (
+                  <button
+                    key={type.value}
+                    type="button"
+                    onClick={() => handleTypeSelect(type.value)}
+                    className={`relative p-3 rounded-xl border text-left transition-all ${
+                      isSelected
+                        ? "border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/60 text-indigo-900 dark:text-indigo-200 shadow-2xs font-semibold"
+                        : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    <div className="text-xs">{type.label}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section 2: Essentials */}
+          <div className="pt-6 border-t border-slate-200/80 dark:border-slate-800/80">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4 flex items-center gap-2">
               <Calendar className="w-4 h-4 text-indigo-500" />
-              1. Event Parameters & Schedule
+              <span>Event Parameters</span>
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Event Name *
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Event Title *
                 </label>
                 <input
                   type="text"
@@ -142,31 +211,13 @@ export default function NewEventPage() {
                   value={formData.eventName}
                   onChange={handleChange}
                   placeholder="e.g. Maya & Julian's Napa Wedding"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Event Type *
-                </label>
-                <select
-                  name="eventType"
-                  value={formData.eventType}
-                  onChange={handleChange}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  {EVENT_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Event Date *
                 </label>
                 <input
@@ -174,39 +225,39 @@ export default function NewEventPage() {
                   name="eventDate"
                   value={formData.eventDate}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                   required
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Target Location / Venue City *
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Location or Venue *
                 </label>
                 <input
                   type="text"
                   name="location"
                   value={formData.location}
                   onChange={handleChange}
-                  placeholder="e.g. Napa Valley, CA"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g. Meadowood Estate, Napa Valley, CA"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                   required
                 />
               </div>
             </div>
           </div>
 
-          {/* Section 2: Finances & Headcount */}
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4 flex items-center gap-2">
+          {/* Section 3: Budget & Headcount */}
+          <div className="pt-6 border-t border-slate-200/80 dark:border-slate-800/80">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4 flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-emerald-500" />
-              2. Financial Budget & Headcount
+              <span>Budget & Capacity</span>
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Target Total Budget *
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Estimated Total Budget *
                 </label>
                 <input
                   type="number"
@@ -215,20 +266,20 @@ export default function NewEventPage() {
                   onChange={handleChange}
                   min="500"
                   step="100"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Currency *
                 </label>
                 <select
                   name="currency"
                   value={formData.currency}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 >
                   <option value="USD">USD ($)</option>
                   <option value="EUR">EUR (€)</option>
@@ -240,8 +291,8 @@ export default function NewEventPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Estimated Guest Count *
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Expected Guests *
                 </label>
                 <input
                   type="number"
@@ -249,44 +300,44 @@ export default function NewEventPage() {
                   value={formData.guestCount}
                   onChange={handleChange}
                   min="5"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                   required
                 />
               </div>
             </div>
           </div>
 
-          {/* Section 3: Styling & Special Preferences */}
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-800">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-4 flex items-center gap-2">
+          {/* Section 4: Style & Preferences */}
+          <div className="pt-6 border-t border-slate-200/80 dark:border-slate-800/80">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-4 flex items-center gap-2">
               <Palette className="w-4 h-4 text-purple-500" />
-              3. Creative Direction & Constraints
+              <span>Atmosphere & Preferences</span>
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Theme / Design Style
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Theme / Design Vibe
                 </label>
                 <input
                   type="text"
                   name="themeOrStyle"
                   value={formData.themeOrStyle}
                   onChange={handleChange}
-                  placeholder="e.g. Modern Rustic Romance"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g. Modern Rustic Elegance"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Formality
                 </label>
                 <select
                   name="formality"
                   value={formData.formality}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 >
                   <option value="CASUAL">Casual</option>
                   <option value="SEMI_FORMAL">Semi-Formal</option>
@@ -296,14 +347,14 @@ export default function NewEventPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
                   Setting
                 </label>
                 <select
                   name="indoorOutdoor"
                   value={formData.indoorOutdoor}
                   onChange={handleChange}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 >
                   <option value="INDOOR">Indoor Only</option>
                   <option value="OUTDOOR">Outdoor Only</option>
@@ -312,38 +363,39 @@ export default function NewEventPage() {
               </div>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Cultural Traditions / Key Customs
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Customs & Traditions (Optional)
                 </label>
                 <input
                   type="text"
                   name="culturalTraditions"
                   value={formData.culturalTraditions}
                   onChange={handleChange}
-                  placeholder="e.g. Traditional family blessing, multilingual ceremony"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g. Bilingual welcome, tea ceremony, acoustic toasts"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Dietary & Special Notes
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                  Dietary & Special Notes (Optional)
                 </label>
                 <input
                   type="text"
                   name="dietaryNotes"
                   value={formData.dietaryNotes}
                   onChange={handleChange}
-                  placeholder="e.g. Multiple gluten-free and vegan requests"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  placeholder="e.g. Vegan and gluten-free guests, quiet hours by 10 PM"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
               </div>
             </div>
           </div>
 
-          <div className="pt-6 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between">
+          {/* Form Actions */}
+          <div className="pt-6 border-t border-slate-200/80 dark:border-slate-800/80 flex items-center justify-between">
             <Link
               href="/"
               className="text-xs font-semibold text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
@@ -351,26 +403,43 @@ export default function NewEventPage() {
               Cancel
             </Link>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm shadow-md transition-all disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Synthesizing Plan & Initializing DB...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>Generate Event Plan</span>
-                </>
-              )}
-            </button>
+            <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-slate-900 dark:bg-indigo-600 hover:bg-slate-800 dark:hover:bg-indigo-500 text-white font-semibold text-sm shadow-sm transition-all disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Structuring Event Plan...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Create Event Plan</span>
+                  </>
+                )}
+              </button>
+            </motion.div>
           </div>
         </form>
       </div>
-    </div>
+    </motion.div>
+  );
+}
+
+export default function NewEventPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-4xl mx-auto px-4 py-16 text-center text-slate-400">
+          <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-500" />
+          <p className="text-xs">Loading form...</p>
+        </div>
+      }
+    >
+      <NewEventForm />
+    </Suspense>
   );
 }

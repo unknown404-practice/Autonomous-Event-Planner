@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   addBudgetItem,
   addGuest,
@@ -7,6 +7,7 @@ import {
   deleteBudgetItem,
   deleteGuest,
   deleteTask,
+  deleteVendorQuote,
   getEventById,
   saveVendorQuote,
   updateBudgetItem,
@@ -155,6 +156,13 @@ describe("Database & Server Actions Integration Lifecycle", () => {
     expect(quote).toBeDefined();
     expect(quote?.status).toBe("QUOTE_RECEIVED");
     expect(quote?.quotedAmount).toBe(1400);
+
+    // Delete vendor quote
+    const delRes = await deleteVendorQuote(quote!.id);
+    expect(delRes.success).toBe(true);
+
+    const afterDelEvent = await getEventById(createdEventId);
+    expect(afterDelEvent?.vendors.find((v) => v.id === quote!.id)).toBeUndefined();
   });
 
   it("manages guests, RSVPs, and dietary summaries", async () => {
@@ -184,5 +192,20 @@ describe("Database & Server Actions Integration Lifecycle", () => {
 
     event = await getEventById(createdEventId);
     expect(event?.guests.find((g) => g.id === guest!.id)).toBeUndefined();
+  });
+
+  afterAll(async () => {
+    if (createdEventId) {
+      await prisma.activityLog.deleteMany({ where: { eventId: createdEventId } });
+      await prisma.guest.deleteMany({ where: { eventId: createdEventId } });
+      await prisma.vendorQuote.deleteMany({ where: { eventId: createdEventId } });
+      await prisma.taskDependency.deleteMany({
+        where: { task: { eventId: createdEventId } },
+      });
+      await prisma.task.deleteMany({ where: { eventId: createdEventId } });
+      await prisma.budgetItem.deleteMany({ where: { eventId: createdEventId } });
+      await prisma.event.deleteMany({ where: { id: createdEventId } });
+    }
+    await prisma.$disconnect();
   });
 });

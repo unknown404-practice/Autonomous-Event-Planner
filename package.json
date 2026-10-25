@@ -11,7 +11,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:push": "prisma db push",
+    "db:clean": "node scripts/clean.mjs",
     "db:seed": "node scripts/seed.mjs",
+    "db:seed:demo": "node scripts/seed.mjs --demo",
     "db:studio": "prisma studio"
   },
   "dependencies": {
@@ -19,6 +21,7 @@
     "@prisma/client": "^6.3.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "framer-motion": "^14.6.0",
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
     "react": "^19.0.0",

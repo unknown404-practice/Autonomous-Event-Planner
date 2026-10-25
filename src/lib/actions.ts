@@ -662,6 +662,33 @@ export async function saveVendorQuote(
 }
 
 /**
+ * Deletes a vendor quote.
+ */
+export async function deleteVendorQuote(vendorId: string) {
+  try {
+    const existing = await prisma.vendorQuote.findUnique({ where: { id: vendorId } });
+    if (!existing) return { success: false, error: "Vendor quote not found" };
+
+    await prisma.vendorQuote.delete({ where: { id: vendorId } });
+
+    await prisma.activityLog.create({
+      data: {
+        eventId: existing.eventId,
+        action: "VENDOR_QUOTE_DELETED",
+        details: `Deleted quotation for vendor "${existing.vendorName}".`,
+        provenance: "USER_ENTERED",
+      },
+    });
+
+    safeRevalidate(`/events/${existing.eventId}`);
+    return { success: true };
+  } catch (error) {
+    console.error("Error deleting vendor quote:", error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
  * Adds a guest.
  */
 export async function addGuest(eventId: string, guest: GuestInput) {

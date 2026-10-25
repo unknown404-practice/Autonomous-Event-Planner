@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { getEventById } from "@/lib/actions";
 import { ArrowLeft, CheckCircle2, Phone, Printer, Users } from "lucide-react";
 import { PrintButton } from "@/components/PrintButton";
@@ -43,8 +44,9 @@ export default async function GuestInvitationsPrintPage({ params }: PageProps) {
       <div className="border-b-2 border-slate-900 pb-4 mb-6">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Official Guest Registry & Check-In Roster
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500 mb-1">
+              <Image src="/app-icon.png" alt="EventPilot" width={18} height={18} className="object-contain" />
+              <span>EventPilot • Guest Registry & Check-In Roster</span>
             </div>
             <h1 className="text-2xl font-black tracking-tight uppercase mt-1">
               Master Guest Invitation & Attendance Register

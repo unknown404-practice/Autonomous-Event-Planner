@@ -29,7 +29,13 @@ async function main() {
     },
   });
 
-  console.log(`Created demo user: ${demoUser.name} (${demoUser.email})`);
+  console.log(`Created organizer: ${demoUser.name} (${demoUser.email})`);
+
+  const withDemo = process.argv.includes("--demo");
+  if (!withDemo) {
+    console.log("Database initialized in clean mode without dummy events. Run with --demo to populate synthetic records.");
+    return;
+  }
 
   // 2. Create Flagship Wedding Event
   const weddingEvent = await prisma.event.create({

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { getEventById } from "@/lib/actions";
 import { ArrowLeft } from "lucide-react";
 import { PrintButton } from "@/components/PrintButton";
@@ -55,8 +56,9 @@ export default async function KitchenCateringSpecsPage({ params }: PageProps) {
       <div className="border-b-2 border-slate-900 pb-4 mb-6">
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-xs font-bold uppercase tracking-widest text-slate-500">
-              Back-of-House Kitchen Specification Sheet
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500 mb-1">
+              <Image src="/app-icon.png" alt="EventPilot" width={18} height={18} className="object-contain" />
+              <span>EventPilot • Back-of-House Kitchen Specification Sheet</span>
             </div>
             <h1 className="text-2xl font-black tracking-tight uppercase mt-1">
               Kitchen Catering & Banquet Production Order
