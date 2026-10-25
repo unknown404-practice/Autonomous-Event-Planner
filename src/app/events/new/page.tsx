@@ -31,6 +31,11 @@ const EVENT_TYPES: Array<{ value: EventType; label: string; defaultStyle: string
   { value: "OTHER", label: "Other Special Event", defaultStyle: "Custom Concept" },
 ];
 
+type FormState = Omit<PlanGenerationInput, "guestCount" | "totalBudget"> & {
+  guestCount: number | "";
+  totalBudget: number | "";
+};
+
 function NewEventForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -39,7 +44,7 @@ function NewEventForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [formData, setFormData] = useState<PlanGenerationInput>({
+  const [formData, setFormData] = useState<FormState>({
     eventName: "",
     eventType: initialType,
     eventDate: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
@@ -70,10 +75,22 @@ function NewEventForm() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value, type } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "number" ? Math.max(0, Number(value)) : value,
-    }));
+    if (type === "number") {
+      // Strip leading zeros before any digits, e.g. "01200" -> "1200", but allow empty string or single 0
+      const sanitized = value.replace(/^0+(?=\d)/, "");
+      if (e.target.value !== sanitized) {
+        e.target.value = sanitized;
+      }
+      setFormData((prev) => ({
+        ...prev,
+        [name]: sanitized === "" ? "" : Number(sanitized),
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
   };
 
   const handleTypeSelect = (typeValue: EventType) => {
@@ -102,9 +119,27 @@ function NewEventForm() {
       return;
     }
 
+    const parsedGuestCount = Number(formData.guestCount);
+    const parsedTotalBudget = Number(formData.totalBudget);
+
+    if (!formData.guestCount || isNaN(parsedGuestCount) || parsedGuestCount < 1) {
+      setErrorMsg("Please specify a valid guest count (minimum 1 guest).");
+      return;
+    }
+    if (!formData.totalBudget || isNaN(parsedTotalBudget) || parsedTotalBudget < 100) {
+      setErrorMsg("Please specify an estimated budget (minimum 100).");
+      return;
+    }
+
+    const payload: PlanGenerationInput = {
+      ...formData,
+      guestCount: parsedGuestCount,
+      totalBudget: parsedTotalBudget,
+    };
+
     setIsSubmitting(true);
     try {
-      const res = await createEvent(formData);
+      const res = await createEvent(payload);
       if (res.success && res.eventId) {
         router.push(`/events/${res.eventId}`);
       } else {
@@ -264,9 +299,14 @@ function NewEventForm() {
                   name="totalBudget"
                   value={formData.totalBudget}
                   onChange={handleChange}
-                  min="500"
+                  onFocus={(e) => {
+                    if (e.target.value === "0") e.target.value = "";
+                    e.currentTarget.select();
+                  }}
+                  min="100"
                   step="100"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  placeholder="e.g. 25000"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                   required
                 />
               </div>
@@ -279,7 +319,7 @@ function NewEventForm() {
                   name="currency"
                   value={formData.currency}
                   onChange={handleChange}
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-semibold"
                 >
                   <option value="USD">USD ($)</option>
                   <option value="EUR">EUR (€)</option>
@@ -299,8 +339,14 @@ function NewEventForm() {
                   name="guestCount"
                   value={formData.guestCount}
                   onChange={handleChange}
-                  min="5"
-                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  onFocus={(e) => {
+                    if (e.target.value === "0") e.target.value = "";
+                    e.currentTarget.select();
+                  }}
+                  min="1"
+                  step="1"
+                  placeholder="e.g. 100"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all font-mono"
                   required
                 />
               </div>

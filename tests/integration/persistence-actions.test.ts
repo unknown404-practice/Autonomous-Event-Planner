@@ -200,7 +200,12 @@ describe("Database & Server Actions Integration Lifecycle", () => {
       await prisma.guest.deleteMany({ where: { eventId: createdEventId } });
       await prisma.vendorQuote.deleteMany({ where: { eventId: createdEventId } });
       await prisma.taskDependency.deleteMany({
-        where: { task: { eventId: createdEventId } },
+        where: {
+          OR: [
+            { task: { eventId: createdEventId } },
+            { dependsOnTask: { eventId: createdEventId } },
+          ],
+        },
       });
       await prisma.task.deleteMany({ where: { eventId: createdEventId } });
       await prisma.budgetItem.deleteMany({ where: { eventId: createdEventId } });
