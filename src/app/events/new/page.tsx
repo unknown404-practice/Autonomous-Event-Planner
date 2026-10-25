@@ -6,6 +6,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { createEvent } from "@/lib/actions";
+import { saveEventToLocalHistory } from "@/lib/local-storage-sync";
 import { EventType, PlanGenerationInput } from "@/lib/types";
 import {
   ArrowLeft,
@@ -141,6 +142,21 @@ function NewEventForm() {
     try {
       const res = await createEvent(payload);
       if (res.success && res.eventId) {
+        saveEventToLocalHistory(
+          {
+            id: res.eventId,
+            eventName: payload.eventName,
+            eventType: payload.eventType,
+            eventDate: payload.eventDate,
+            location: payload.location,
+            guestCount: payload.guestCount,
+            totalBudget: payload.totalBudget,
+            currency: payload.currency,
+            status: "PLANNING",
+            themeOrStyle: payload.themeOrStyle,
+          },
+          "EVENT_CREATED"
+        );
         router.push(`/events/${res.eventId}`);
       } else {
         setErrorMsg(res.error || "Failed to initialize event. Please try again.");

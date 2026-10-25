@@ -366,6 +366,81 @@ export async function updateEventDetails(
 }
 
 /**
+ * Cancels an event while preserving complete relational history in the SQLite database.
+ * Updates event status to CANCELLED and creates an immutable audit trail entry.
+ */
+export async function cancelEvent(eventId: string, reason?: string) {
+  try {
+    const updated = await prisma.event.update({
+      where: { id: eventId },
+      data: { status: "CANCELLED" },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        eventId,
+        action: "EVENT_CANCELLED",
+        details: reason?.trim()
+          ? `Event marked as CANCELLED. Reason: ${reason.trim()}`
+          : "Event marked as CANCELLED by organizer. Complete budget, task, and vendor history preserved in SQLite.",
+        provenance: "USER_ENTERED",
+      },
+    });
+
+    safeRevalidate("/");
+    safeRevalidate(`/events/${eventId}`);
+    return { success: true, event: updated };
+  } catch (error) {
+    console.error(`Failed to cancel event ${eventId}:`, error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Reactivates a previously cancelled event from database history.
+ */
+export async function reactivateEvent(eventId: string) {
+  try {
+    const updated = await prisma.event.update({
+      where: { id: eventId },
+      data: { status: "PLANNING" },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        eventId,
+        action: "EVENT_REACTIVATED",
+        details: "Event reactivated to active PLANNING status from history.",
+        provenance: "USER_ENTERED",
+      },
+    });
+
+    safeRevalidate("/");
+    safeRevalidate(`/events/${eventId}`);
+    return { success: true, event: updated };
+  } catch (error) {
+    console.error(`Failed to reactivate event ${eventId}:`, error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Permanently deletes an event and all its cascaded records from SQLite.
+ */
+export async function deleteEvent(eventId: string) {
+  try {
+    await prisma.event.delete({
+      where: { id: eventId },
+    });
+    safeRevalidate("/");
+    return { success: true };
+  } catch (error) {
+    console.error(`Failed to permanently delete event ${eventId}:`, error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
  * Adds an item to the budget.
  */
 export async function addBudgetItem(

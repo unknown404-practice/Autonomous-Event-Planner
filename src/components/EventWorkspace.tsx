@@ -1,23 +1,31 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   addBudgetItem,
   addGuest,
   addTask,
+  cancelEvent,
   deleteBudgetItem,
+  deleteEvent,
   deleteGuest,
   deleteTask,
   deleteVendorQuote,
+  reactivateEvent,
   saveVendorQuote,
   updateBudgetItem,
   updateEventDetails,
   updateGuestRsvp,
   updateTaskStatus,
 } from "@/lib/actions";
+import {
+  saveEventToLocalHistory,
+  removeEventFromLocalHistory,
+} from "@/lib/local-storage-sync";
 import { formatCurrency } from "@/lib/budget-math";
 import { ProvenanceBadge } from "@/components/ProvenanceBadge";
 import { StatCard } from "@/components/StatCard";
@@ -35,10 +43,12 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
+  Database,
   FileCheck2,
   MapPin,
   Plus,
   Printer,
+  RotateCcw,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -111,6 +121,17 @@ export function EventWorkspace({ event }: WorkspaceProps) {
   // Reschedule Form State
   const [rescheduleDate, setRescheduleDate] = useState(event.eventDate);
 
+  // Cancel & History State
+  const router = useRouter();
+  const [cancelReason, setCancelReason] = useState("");
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(event.status || "PLANNING");
+
+  // Sync detailed event history to browser localStorage
+  useEffect(() => {
+    saveEventToLocalHistory(event);
+  }, [event]);
+
   const daysLeft = Math.ceil(
     (new Date(event.eventDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
   );
@@ -125,6 +146,44 @@ export function EventWorkspace({ event }: WorkspaceProps) {
     scheduledTasks.length > 0
       ? Math.round((completedTasksCount / scheduledTasks.length) * 100)
       : 0;
+
+  // Cancel & Reactivation Handlers
+  const handleCancelEvent = async () => {
+    setIsCancelling(true);
+    const res = await cancelEvent(event.id, cancelReason);
+    if (res.success) {
+      setCurrentStatus("CANCELLED");
+      saveEventToLocalHistory({ ...event, status: "CANCELLED" }, "EVENT_CANCELLED");
+      setModalOpen(null);
+    }
+    setIsCancelling(false);
+  };
+
+  const handleReactivateEvent = async () => {
+    setIsCancelling(true);
+    const res = await reactivateEvent(event.id);
+    if (res.success) {
+      setCurrentStatus("PLANNING");
+      saveEventToLocalHistory({ ...event, status: "PLANNING" }, "EVENT_REACTIVATED");
+    }
+    setIsCancelling(false);
+  };
+
+  const handleDeletePermanently = async () => {
+    if (
+      !confirm(
+        `Are you sure you want to permanently delete "${event.eventName}"? All budget records, tasks, vendors, and guests will be removed from your SQLite database.`
+      )
+    )
+      return;
+    setIsCancelling(true);
+    const res = await deleteEvent(event.id);
+    if (res.success) {
+      removeEventFromLocalHistory(event.id);
+      router.push("/");
+    }
+    setIsCancelling(false);
+  };
 
   // Handlers
   const handleAddBudgetItem = async (e: React.FormEvent) => {
@@ -311,8 +370,63 @@ export function EventWorkspace({ event }: WorkspaceProps) {
             <Calendar className="w-3.5 h-3.5 text-indigo-500" />
             <span>Reschedule Date</span>
           </motion.button>
+
+          {currentStatus !== "CANCELLED" ? (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setModalOpen("cancelEvent")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50/70 dark:bg-rose-950/40 text-xs font-semibold text-rose-700 dark:text-rose-300 hover:bg-rose-100 dark:hover:bg-rose-900/60 shadow-2xs transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400" />
+              <span>Cancel Event</span>
+            </motion.button>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={handleReactivateEvent}
+              disabled={isCancelling}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-colors shadow-2xs"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Reactivate Event</span>
+            </motion.button>
+          )}
         </div>
       </div>
+
+      {/* Cancelled Event History Banner */}
+      {currentStatus === "CANCELLED" && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-4 bg-rose-50/80 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs mb-6 shadow-2xs"
+        >
+          <div className="flex items-center gap-3 text-rose-800 dark:text-rose-300">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+            <div>
+              <span className="font-bold">This Event is Cancelled.</span> Complete historical budget allocations, milestone tasks, vendor quotations, and guest rosters remain safely preserved in your SQLite database and browser local storage.
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleReactivateEvent}
+              disabled={isCancelling}
+              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-xs transition-colors"
+            >
+              Restore to Planning
+            </button>
+            <button
+              onClick={handleDeletePermanently}
+              disabled={isCancelling}
+              className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-rose-300 dark:border-rose-800 text-rose-700 dark:text-rose-300 hover:bg-rose-50 font-semibold rounded-lg text-xs transition-colors"
+            >
+              Delete Permanently
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Main Event Header Card */}
       <motion.div
@@ -337,8 +451,14 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                 <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/80">
                   {event.eventType.replace("_", " ")}
                 </span>
-                <span className="text-[11px] font-medium px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                  {event.status}
+                <span
+                  className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
+                    currentStatus === "CANCELLED"
+                      ? "bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800"
+                      : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                  }`}
+                >
+                  {currentStatus}
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
@@ -1214,6 +1334,7 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                   {modalOpen === "vendor" && "Add Vendor Quote"}
                   {modalOpen === "guest" && "Add Guest to Roster"}
                   {modalOpen === "reschedule" && "Reschedule Master Event"}
+                  {modalOpen === "cancelEvent" && "Cancel Master Event"}
                 </h3>
                 <button
                   type="button"
@@ -1662,6 +1783,63 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                     </button>
                   </div>
                 </form>
+              )}
+
+              {/* MODAL: CANCEL EVENT */}
+              {modalOpen === "cancelEvent" && (
+                <div className="space-y-4 text-xs">
+                  <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-2xl text-rose-800 dark:text-rose-300">
+                    <p className="font-bold text-sm">
+                      Are you sure you want to cancel &ldquo;{event.eventName}&rdquo;?
+                    </p>
+                    <p className="mt-1 text-slate-600 dark:text-slate-300 leading-relaxed">
+                      This marks the event as <span className="font-semibold text-rose-700 dark:text-rose-400">CANCELLED</span>.
+                      All detailed history, including budget line items, milestone tasks, vendor quotations, and guest rosters, will remain safely archived in your SQLite database and browser local storage for future reference.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">
+                      Reason for Cancellation (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      placeholder="e.g. Schedule conflict, budget constraint, postponed"
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-800 dark:text-slate-200"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={handleDeletePermanently}
+                      disabled={isCancelling}
+                      className="text-[11px] text-slate-400 hover:text-rose-600 transition-colors underline"
+                    >
+                      Permanently delete from database
+                    </button>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                      <button
+                        type="button"
+                        onClick={() => setModalOpen(null)}
+                        className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        Keep Event
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleCancelEvent}
+                        disabled={isCancelling}
+                        className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-xl shadow-sm transition-colors flex items-center gap-1.5"
+                      >
+                        {isCancelling ? "Cancelling..." : "Confirm Cancellation"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </motion.div>
           </div>
