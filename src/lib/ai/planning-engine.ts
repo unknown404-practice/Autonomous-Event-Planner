@@ -160,13 +160,14 @@ async function callOpenRouter(
 
 async function callOllama(
   prompt: string,
-  modelName: string = "gemma2:2b"
+  modelName: string = "gemma:2b"
 ): Promise<GeneratedPlanSchemaType | null> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+  const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
 
   try {
-    const res = await fetch("http://127.0.0.1:11434/api/generate", {
+    const baseUrl = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
+    const res = await fetch(`${baseUrl}/api/generate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -215,9 +216,9 @@ export async function generateEventPlan(
     }
   }
 
-  // 2. Try Local / Docker Ollama with Gemma 2 2B / Gemma 2B
+  // 2. Try Local / Docker Ollama with Gemma 2B (already downloaded in Ollama)
   try {
-    const localModel = process.env.OLLAMA_MODEL || "gemma2:2b";
+    const localModel = process.env.OLLAMA_MODEL || "gemma:2b";
     const plan = await callOllama(prompt, localModel);
     if (plan) {
       return {
