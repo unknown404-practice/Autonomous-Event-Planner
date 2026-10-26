@@ -5,6 +5,7 @@
 // and authorization guards per Directive 4, 8 & 9.
 
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 function safeRevalidate(path: string) {
   try {
@@ -14,9 +15,21 @@ function safeRevalidate(path: string) {
   }
 }
 import { generateEventPlan } from "./ai/planning-engine";
+import {
+  BudgetItemInputSchema,
+  CreateEventSchema,
+  GuestInputSchema,
+  TaskInputSchema,
+  VendorQuoteInputSchema,
+} from "./ai/schemas";
 import { calculateBudgetItem, calculateBudgetSummary } from "./budget-math";
 import prisma from "./db";
-import { calculateDueDate, scheduleTasks } from "./timeline-math";
+import {
+  calculateDueDate,
+  detectDependencyCycle,
+  scheduleTasks,
+  validateScheduleFeasibility,
+} from "./timeline-math";
 import {
   BudgetItemInput,
   CalculatedBudgetSummary,
@@ -29,14 +42,27 @@ import {
   VendorStatus,
 } from "./types";
 
-const DEFAULT_USER_ID = "usr_demo_organizer_01";
+export async function getCurrentUserId(): Promise<string> {
+  try {
+    const cookieStore = await cookies();
+    const sessionUser = cookieStore.get("eventpilot_user_id")?.value;
+    if (sessionUser && sessionUser.trim() !== "") {
+      return sessionUser.trim();
+    }
+  } catch {
+    // Fallback when executed outside request context (e.g. tests)
+  }
+  return "usr_demo_organizer_01";
+}
 
 /**
  * Fetch all events for the current organizer.
  */
 export async function getEvents() {
   try {
+    const currentUserId = await getCurrentUserId();
     return await prisma.event.findMany({
+      where: { userId: currentUserId },
       orderBy: { createdAt: "desc" },
       include: {
         _count: {
@@ -95,9 +121,11 @@ export async function getEventById(eventId: string) {
     // Parse JSON concepts safely
     let parsedConcept = null;
     let parsedContingencies = [];
+    let parsedVendorRequirements = [];
     try {
       if (event.conceptJson) parsedConcept = JSON.parse(event.conceptJson);
       if (event.contingenciesJson) parsedContingencies = JSON.parse(event.contingenciesJson);
+      if (event.vendorRequirementsJson) parsedVendorRequirements = JSON.parse(event.vendorRequirementsJson);
     } catch (e) {
       console.warn("Failed to parse event JSON fields:", e);
     }
@@ -163,6 +191,7 @@ export async function getEventById(eventId: string) {
       ...event,
       concept: parsedConcept,
       contingencies: parsedContingencies,
+      vendorRequirements: parsedVendorRequirements,
       budgetSummary,
       scheduledTasks,
       guestSummary,
@@ -178,42 +207,46 @@ export async function getEventById(eventId: string) {
  */
 export async function createEvent(input: PlanGenerationInput) {
   try {
+    const validated = CreateEventSchema.parse(input);
+
+    const currentUserId = await getCurrentUserId();
     // 1. Ensure user exists
-    let user = await prisma.user.findUnique({ where: { id: DEFAULT_USER_ID } });
+    let user = await prisma.user.findUnique({ where: { id: currentUserId } });
     if (!user) {
       user = await prisma.user.create({
         data: {
-          id: DEFAULT_USER_ID,
-          email: "organizer@eventpilot.ai",
-          name: "Alex Rivera",
+          id: currentUserId,
+          email: `${currentUserId}@eventpilot.ai`,
+          name: currentUserId === "usr_demo_organizer_01" ? "Alex Rivera" : "Event Organizer",
           role: "ORGANIZER",
         },
       });
     }
 
     // 2. Generate initial plan via AI / Heuristic engine
-    const generatedPlan = await generateEventPlan(input);
+    const generatedPlan = await generateEventPlan(validated);
 
     // 3. Persist Event in atomic transaction
     const newEvent = await prisma.$transaction(async (tx) => {
       const evt = await tx.event.create({
         data: {
           userId: user.id,
-          eventName: input.eventName,
-          eventType: input.eventType,
-          eventDate: input.eventDate,
-          location: input.location,
-          guestCount: input.guestCount,
-          totalBudget: input.totalBudget,
-          currency: input.currency,
-          themeOrStyle: input.themeOrStyle || null,
-          formality: input.formality || "SEMI_FORMAL",
-          indoorOutdoor: input.indoorOutdoor || "HYBRID",
-          culturalTraditions: input.culturalTraditions || null,
-          dietaryNotes: input.dietaryNotes || null,
-          specialConstraints: input.specialConstraints || null,
+          eventName: validated.eventName,
+          eventType: validated.eventType,
+          eventDate: validated.eventDate,
+          location: validated.location,
+          guestCount: validated.guestCount,
+          totalBudget: validated.totalBudget,
+          currency: validated.currency,
+          themeOrStyle: validated.themeOrStyle || null,
+          formality: validated.formality || "SEMI_FORMAL",
+          indoorOutdoor: validated.indoorOutdoor || "HYBRID",
+          culturalTraditions: validated.culturalTraditions || null,
+          dietaryNotes: validated.dietaryNotes || null,
+          specialConstraints: validated.specialConstraints || null,
           conceptJson: JSON.stringify(generatedPlan.concept),
           contingenciesJson: JSON.stringify(generatedPlan.contingencies),
+          vendorRequirementsJson: JSON.stringify(generatedPlan.vendorRequirements),
         },
       });
 
@@ -448,7 +481,8 @@ export async function addBudgetItem(
   item: BudgetItemInput & { priority?: string }
 ) {
   try {
-    const calculated = calculateBudgetItem(item);
+    const validated = BudgetItemInputSchema.parse(item);
+    const calculated = calculateBudgetItem(validated);
 
     const created = await prisma.budgetItem.create({
       data: {
@@ -492,23 +526,25 @@ export async function updateBudgetItem(
   data: Partial<BudgetItemInput>
 ) {
   try {
+    const validated = BudgetItemInputSchema.partial().parse(data);
     const existing = await prisma.budgetItem.findUnique({ where: { id: itemId } });
-    if (!existing) throw new Error("Item not found");
+    if (!existing) return { success: false, error: "Item not found" };
 
     const merged: BudgetItemInput = {
-      category: (data.category || existing.category) as VendorCategory,
-      description: data.description ?? existing.description,
-      estimatedQuantity: data.estimatedQuantity ?? existing.estimatedQuantity,
-      estimatedUnitCost: data.estimatedUnitCost ?? existing.estimatedUnitCost,
-      taxRatePercent: data.taxRatePercent ?? existing.taxRatePercent,
-      additionalFees: data.additionalFees ?? existing.additionalFees,
-      actualCost: data.actualCost !== undefined ? data.actualCost : (existing.actualCost ?? undefined),
-      depositPaid: data.depositPaid ?? existing.depositPaid,
+      category: (validated.category || existing.category) as VendorCategory,
+      description: validated.description ?? existing.description,
+      estimatedQuantity: validated.estimatedQuantity ?? existing.estimatedQuantity,
+      estimatedUnitCost: validated.estimatedUnitCost ?? existing.estimatedUnitCost,
+      taxRatePercent: validated.taxRatePercent ?? existing.taxRatePercent,
+      additionalFees: validated.additionalFees ?? existing.additionalFees,
+      actualCost: validated.actualCost !== undefined ? (validated.actualCost ?? undefined) : (existing.actualCost ?? undefined),
+      depositPaid: validated.depositPaid ?? existing.depositPaid,
+      notes: validated.notes !== undefined ? (validated.notes ?? undefined) : (existing.notes ?? undefined),
     };
 
     const calculated = calculateBudgetItem(merged);
 
-    await prisma.budgetItem.update({
+    const updated = await prisma.budgetItem.update({
       where: { id: itemId },
       data: {
         category: calculated.category,
@@ -519,12 +555,22 @@ export async function updateBudgetItem(
         additionalFees: calculated.additionalFees,
         actualCost: calculated.actualCost || null,
         depositPaid: calculated.depositPaid,
+        notes: calculated.notes || null,
+        provenance: "USER_ENTERED",
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        eventId: existing.eventId,
+        action: "BUDGET_ITEM_UPDATED",
+        details: `Updated budget item "${calculated.description}" (${calculated.category}).`,
         provenance: "USER_ENTERED",
       },
     });
 
     safeRevalidate(`/events/${existing.eventId}`);
-    return { success: true };
+    return { success: true, item: updated };
   } catch (error) {
     console.error("Error updating budget item:", error);
     return { success: false, error: (error as Error).message };
@@ -559,7 +605,7 @@ export async function deleteBudgetItem(itemId: string) {
 }
 
 /**
- * Adds a new task.
+ * Adds a new task with DAG dependency cycle check and schedule feasibility validation.
  */
 export async function addTask(
   eventId: string,
@@ -574,28 +620,84 @@ export async function addTask(
   }
 ) {
   try {
-    const event = await prisma.event.findUnique({ where: { id: eventId } });
-    if (!event) throw new Error("Event not found");
+    const validated = TaskInputSchema.parse(task);
 
-    const dueDate = calculateDueDate(event.eventDate, task.daysBeforeEvent);
+    const event = await prisma.event.findUnique({
+      where: { id: eventId },
+      include: { tasks: { include: { dependencies: true } } },
+    });
+    if (!event) return { success: false, error: "Event not found" };
+
+    const existingTaskIds = new Set(event.tasks.map((t) => t.id));
+    if (validated.dependsOnTaskIds && validated.dependsOnTaskIds.length > 0) {
+      for (const depId of validated.dependsOnTaskIds) {
+        if (!existingTaskIds.has(depId)) {
+          return {
+            success: false,
+            error: `Invalid task dependency: referenced task ID "${depId}" does not exist in this event.`,
+          };
+        }
+      }
+    }
+
+    const simulatedTasks: TaskInput[] = [
+      ...event.tasks.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description || undefined,
+        category: t.category as any,
+        priority: t.priority as any,
+        daysBeforeEvent: t.daysBeforeEvent,
+        dependsOnTaskIds: t.dependencies.map((d) => d.dependsOnTaskId),
+        status: t.status as any,
+      })),
+      {
+        id: "simulated_new_task",
+        title: validated.title,
+        description: validated.description || undefined,
+        category: validated.category as any,
+        priority: validated.priority as any,
+        daysBeforeEvent: validated.daysBeforeEvent,
+        dependsOnTaskIds: validated.dependsOnTaskIds || [],
+        status: validated.status as any,
+      },
+    ];
+
+    const cycle = detectDependencyCycle(simulatedTasks);
+    if (cycle.hasCycle) {
+      return {
+        success: false,
+        error: `Circular task dependency detected: ${cycle.cyclePath ? cycle.cyclePath.join(" -> ") : "Loop detected"}`,
+      };
+    }
+
+    const feasibility = validateScheduleFeasibility(event.eventDate, simulatedTasks);
+    if (!feasibility.isFeasible) {
+      return {
+        success: false,
+        error: `Schedule feasibility conflict: ${feasibility.conflicts.join("; ")}`,
+      };
+    }
+
+    const dueDate = calculateDueDate(event.eventDate, validated.daysBeforeEvent);
 
     const created = await prisma.$transaction(async (tx) => {
       const t = await tx.task.create({
         data: {
           eventId,
-          title: task.title,
-          description: task.description || null,
-          category: task.category || "GENERAL",
-          priority: task.priority || "MEDIUM",
-          daysBeforeEvent: task.daysBeforeEvent,
+          title: validated.title,
+          description: validated.description || null,
+          category: validated.category || "GENERAL",
+          priority: validated.priority || "MEDIUM",
+          daysBeforeEvent: validated.daysBeforeEvent,
           dueDate,
-          assigneeName: task.assigneeName || null,
+          assigneeName: validated.assigneeName || null,
           provenance: "USER_ENTERED",
         },
       });
 
-      if (task.dependsOnTaskIds && task.dependsOnTaskIds.length > 0) {
-        for (const depId of task.dependsOnTaskIds) {
+      if (validated.dependsOnTaskIds && validated.dependsOnTaskIds.length > 0) {
+        for (const depId of validated.dependsOnTaskIds) {
           await tx.taskDependency.create({
             data: {
               taskId: t.id,
@@ -609,7 +711,7 @@ export async function addTask(
         data: {
           eventId,
           action: "TASK_CREATED",
-          details: `Created task "${task.title}" due on ${dueDate}.`,
+          details: `Created task "${validated.title}" due on ${dueDate}.`,
           provenance: "USER_ENTERED",
         },
       });
@@ -621,6 +723,140 @@ export async function addTask(
     return { success: true, task: created };
   } catch (error) {
     console.error("Error adding task:", error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Updates an existing task with DAG dependency cycle check and schedule feasibility validation.
+ */
+export async function updateTask(
+  taskId: string,
+  data: Partial<TaskInput>
+) {
+  try {
+    const validated = TaskInputSchema.partial().parse(data);
+    const existing = await prisma.task.findUnique({
+      where: { id: taskId },
+      include: { dependencies: true, event: true },
+    });
+    if (!existing) return { success: false, error: "Task not found" };
+
+    const event = existing.event;
+    const newDaysBeforeEvent = validated.daysBeforeEvent !== undefined ? validated.daysBeforeEvent : existing.daysBeforeEvent;
+    const newDependsOn = validated.dependsOnTaskIds !== undefined ? validated.dependsOnTaskIds : existing.dependencies.map((d) => d.dependsOnTaskId);
+
+    if (validated.dependsOnTaskIds !== undefined || validated.daysBeforeEvent !== undefined) {
+      const allTasks = await prisma.task.findMany({
+        where: { eventId: existing.eventId },
+        include: { dependencies: true },
+      });
+
+      const otherTaskIds = new Set(allTasks.map((t) => t.id).filter((id) => id !== taskId));
+      if (newDependsOn && newDependsOn.length > 0) {
+        for (const depId of newDependsOn) {
+          if (depId === taskId) {
+            return {
+              success: false,
+              error: `Circular task dependency detected: task "${existing.title}" cannot depend on itself.`,
+            };
+          }
+          if (!otherTaskIds.has(depId)) {
+            return {
+              success: false,
+              error: `Invalid task dependency: referenced task ID "${depId}" does not exist in this event.`,
+            };
+          }
+        }
+      }
+
+      const simulatedTasks: TaskInput[] = allTasks.map((t) => {
+        if (t.id === taskId) {
+          return {
+            id: t.id,
+            title: validated.title ?? t.title,
+            description: (validated.description !== undefined ? validated.description : t.description) || undefined,
+            category: (validated.category ?? t.category) as any,
+            priority: (validated.priority ?? t.priority) as any,
+            daysBeforeEvent: newDaysBeforeEvent,
+            dependsOnTaskIds: newDependsOn,
+            status: (validated.status ?? t.status) as any,
+          };
+        }
+        return {
+          id: t.id,
+          title: t.title,
+          description: t.description || undefined,
+          category: t.category as any,
+          priority: t.priority as any,
+          daysBeforeEvent: t.daysBeforeEvent,
+          dependsOnTaskIds: t.dependencies.map((d) => d.dependsOnTaskId),
+          status: t.status as any,
+        };
+      });
+
+      const cycle = detectDependencyCycle(simulatedTasks);
+      if (cycle.hasCycle) {
+        return {
+          success: false,
+          error: `Circular task dependency detected: ${cycle.cyclePath ? cycle.cyclePath.join(" -> ") : "Loop detected"}`,
+        };
+      }
+
+      const feasibility = validateScheduleFeasibility(event.eventDate, simulatedTasks);
+      if (!feasibility.isFeasible) {
+        return {
+          success: false,
+          error: `Schedule feasibility conflict: ${feasibility.conflicts.join("; ")}`,
+        };
+      }
+    }
+
+    const dueDate = calculateDueDate(event.eventDate, newDaysBeforeEvent);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const t = await tx.task.update({
+        where: { id: taskId },
+        data: {
+          title: validated.title ?? existing.title,
+          description: validated.description !== undefined ? (validated.description || null) : existing.description,
+          category: validated.category ?? existing.category,
+          priority: validated.priority ?? existing.priority,
+          daysBeforeEvent: newDaysBeforeEvent,
+          dueDate,
+          assigneeName: validated.assigneeName !== undefined ? (validated.assigneeName || null) : existing.assigneeName,
+          status: validated.status ?? existing.status,
+        },
+      });
+
+      if (validated.dependsOnTaskIds !== undefined) {
+        await tx.taskDependency.deleteMany({ where: { taskId } });
+        for (const depId of validated.dependsOnTaskIds) {
+          await tx.taskDependency.create({
+            data: {
+              taskId,
+              dependsOnTaskId: depId,
+            },
+          });
+        }
+      }
+
+      await tx.activityLog.create({
+        data: {
+          eventId: existing.eventId,
+          action: "TASK_UPDATED",
+          details: `Updated task "${t.title}".`,
+          provenance: "USER_ENTERED",
+        },
+      });
+
+      return t;
+    });
+
+    safeRevalidate(`/events/${existing.eventId}`);
+    return { success: true, task: updated };
+  } catch (error) {
+    console.error("Error updating task:", error);
     return { success: false, error: (error as Error).message };
   }
 }
@@ -674,6 +910,53 @@ export async function deleteTask(taskId: string) {
 }
 
 /**
+ * Updates an existing vendor quotation.
+ */
+export async function updateVendorQuote(
+  vendorId: string,
+  data: Partial<VendorQuoteInput>
+) {
+  try {
+    const validated = VendorQuoteInputSchema.partial().parse(data);
+    const existing = await prisma.vendorQuote.findUnique({ where: { id: vendorId } });
+    if (!existing) return { success: false, error: "Vendor quote not found" };
+
+    const updated = await prisma.vendorQuote.update({
+      where: { id: vendorId },
+      data: {
+        vendorName: validated.vendorName ?? existing.vendorName,
+        category: validated.category ?? existing.category,
+        contactPerson: validated.contactPerson !== undefined ? (validated.contactPerson || null) : existing.contactPerson,
+        contactEmail: validated.contactEmail !== undefined ? (validated.contactEmail || null) : existing.contactEmail,
+        contactPhone: validated.contactPhone !== undefined ? (validated.contactPhone || null) : existing.contactPhone,
+        status: validated.status ?? existing.status,
+        quotedAmount: validated.quotedAmount !== undefined ? validated.quotedAmount : existing.quotedAmount,
+        depositRequired: validated.depositRequired !== undefined ? validated.depositRequired : existing.depositRequired,
+        cancellationPolicy: validated.cancellationPolicy !== undefined ? (validated.cancellationPolicy || null) : existing.cancellationPolicy,
+        deliverablesJson: data.deliverables !== undefined ? JSON.stringify(data.deliverables) : existing.deliverablesJson,
+        notes: validated.notes !== undefined ? (validated.notes || null) : existing.notes,
+        provenance: "USER_ENTERED",
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        eventId: existing.eventId,
+        action: "VENDOR_QUOTE_UPDATED",
+        details: `Updated quotation for "${updated.vendorName}" (${updated.category}).`,
+        provenance: "USER_ENTERED",
+      },
+    });
+
+    safeRevalidate(`/events/${existing.eventId}`);
+    return { success: true, vendor: updated };
+  } catch (error) {
+    console.error("Error updating vendor quote:", error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
  * Adds or updates a vendor quote.
  */
 export async function saveVendorQuote(
@@ -682,54 +965,39 @@ export async function saveVendorQuote(
 ) {
   try {
     if (data.id) {
-      await prisma.vendorQuote.update({
-        where: { id: data.id },
-        data: {
-          vendorName: data.vendorName,
-          category: data.category,
-          contactPerson: data.contactPerson || null,
-          contactEmail: data.contactEmail || null,
-          contactPhone: data.contactPhone || null,
-          status: data.status,
-          quotedAmount: data.quotedAmount ?? null,
-          depositRequired: data.depositRequired ?? null,
-          cancellationPolicy: data.cancellationPolicy || null,
-          deliverablesJson: data.deliverables ? JSON.stringify(data.deliverables) : null,
-          notes: data.notes || null,
-          provenance: "USER_ENTERED",
-        },
-      });
-    } else {
-      await prisma.vendorQuote.create({
-        data: {
-          eventId,
-          vendorName: data.vendorName,
-          category: data.category,
-          contactPerson: data.contactPerson || null,
-          contactEmail: data.contactEmail || null,
-          contactPhone: data.contactPhone || null,
-          status: data.status,
-          quotedAmount: data.quotedAmount ?? null,
-          depositRequired: data.depositRequired ?? null,
-          cancellationPolicy: data.cancellationPolicy || null,
-          deliverablesJson: data.deliverables ? JSON.stringify(data.deliverables) : null,
-          notes: data.notes || null,
-          provenance: "USER_ENTERED",
-        },
-      });
+      return await updateVendorQuote(data.id, data);
     }
+    const validated = VendorQuoteInputSchema.parse(data);
+
+    const created = await prisma.vendorQuote.create({
+      data: {
+        eventId,
+        vendorName: validated.vendorName,
+        category: validated.category,
+        contactPerson: validated.contactPerson || null,
+        contactEmail: validated.contactEmail || null,
+        contactPhone: validated.contactPhone || null,
+        status: validated.status,
+        quotedAmount: validated.quotedAmount ?? null,
+        depositRequired: validated.depositRequired ?? null,
+        cancellationPolicy: validated.cancellationPolicy || null,
+        deliverablesJson: data.deliverables ? JSON.stringify(data.deliverables) : null,
+        notes: validated.notes || null,
+        provenance: "USER_ENTERED",
+      },
+    });
 
     await prisma.activityLog.create({
       data: {
         eventId,
         action: "VENDOR_QUOTE_SAVED",
-        details: `Saved vendor quotation for "${data.vendorName}" (${data.category}) with status ${data.status}.`,
+        details: `Saved vendor quotation for "${validated.vendorName}" (${validated.category}) with status ${validated.status}.`,
         provenance: "USER_ENTERED",
       },
     });
 
     safeRevalidate(`/events/${eventId}`);
-    return { success: true };
+    return { success: true, vendor: created };
   } catch (error) {
     console.error("Error saving vendor quote:", error);
     return { success: false, error: (error as Error).message };
@@ -768,27 +1036,84 @@ export async function deleteVendorQuote(vendorId: string) {
  */
 export async function addGuest(eventId: string, guest: GuestInput) {
   try {
-    await prisma.guest.create({
+    const validated = GuestInputSchema.parse(guest);
+
+    const created = await prisma.guest.create({
       data: {
         eventId,
-        firstName: guest.firstName,
-        lastName: guest.lastName,
-        email: guest.email || null,
-        phone: guest.phone || null,
-        householdGroup: guest.householdGroup || null,
-        dietaryRequirements: guest.dietaryRequirements || null,
-        accessibilityNeeds: guest.accessibilityNeeds || null,
-        rsvpStatus: guest.rsvpStatus || "INVITED",
-        plusOneAllowed: guest.plusOneAllowed || false,
-        plusOneName: guest.plusOneName || null,
-        isAttendingPlusOne: guest.isAttendingPlusOne || false,
+        firstName: validated.firstName,
+        lastName: validated.lastName,
+        email: validated.email || null,
+        phone: validated.phone || null,
+        householdGroup: validated.householdGroup || null,
+        dietaryRequirements: validated.dietaryRequirements || null,
+        accessibilityNeeds: validated.accessibilityNeeds || null,
+        rsvpStatus: validated.rsvpStatus || "INVITED",
+        plusOneAllowed: validated.plusOneAllowed || false,
+        plusOneName: validated.plusOneName || null,
+        isAttendingPlusOne: validated.isAttendingPlusOne || false,
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        eventId,
+        action: "GUEST_ADDED",
+        details: `Added guest "${validated.firstName} ${validated.lastName}" (${validated.rsvpStatus}).`,
+        provenance: "USER_ENTERED",
       },
     });
 
     safeRevalidate(`/events/${eventId}`);
-    return { success: true };
+    return { success: true, guest: created };
   } catch (error) {
     console.error("Error adding guest:", error);
+    return { success: false, error: (error as Error).message };
+  }
+}
+
+/**
+ * Updates an existing guest.
+ */
+export async function updateGuest(
+  guestId: string,
+  data: Partial<GuestInput>
+) {
+  try {
+    const validated = GuestInputSchema.partial().parse(data);
+    const existing = await prisma.guest.findUnique({ where: { id: guestId } });
+    if (!existing) return { success: false, error: "Guest not found" };
+
+    const updated = await prisma.guest.update({
+      where: { id: guestId },
+      data: {
+        firstName: validated.firstName ?? existing.firstName,
+        lastName: validated.lastName ?? existing.lastName,
+        email: validated.email !== undefined ? (validated.email || null) : existing.email,
+        phone: validated.phone !== undefined ? (validated.phone || null) : existing.phone,
+        householdGroup: validated.householdGroup !== undefined ? (validated.householdGroup || null) : existing.householdGroup,
+        rsvpStatus: validated.rsvpStatus ?? existing.rsvpStatus,
+        dietaryRequirements: validated.dietaryRequirements !== undefined ? (validated.dietaryRequirements || null) : existing.dietaryRequirements,
+        accessibilityNeeds: validated.accessibilityNeeds !== undefined ? (validated.accessibilityNeeds || null) : existing.accessibilityNeeds,
+        plusOneAllowed: validated.plusOneAllowed !== undefined ? validated.plusOneAllowed : existing.plusOneAllowed,
+        plusOneName: validated.plusOneName !== undefined ? (validated.plusOneName || null) : existing.plusOneName,
+        isAttendingPlusOne: validated.isAttendingPlusOne !== undefined ? validated.isAttendingPlusOne : existing.isAttendingPlusOne,
+      },
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        eventId: existing.eventId,
+        action: "GUEST_UPDATED",
+        details: `Updated guest details for "${updated.firstName} ${updated.lastName}".`,
+        provenance: "USER_ENTERED",
+      },
+    });
+
+    safeRevalidate(`/events/${existing.eventId}`);
+    return { success: true, guest: updated };
+  } catch (error) {
+    console.error("Error updating guest:", error);
     return { success: false, error: (error as Error).message };
   }
 }

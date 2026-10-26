@@ -17,7 +17,7 @@ fi
 
 # Ensure SQLite database schema is applied safely
 echo "[EventPilot Docker] Ensuring database schema is synchronized..."
-npx prisma db push --skip-generate
+./node_modules/.bin/prisma db push --skip-generate 2>/dev/null || node node_modules/prisma/build/index.js db push --skip-generate || npx prisma db push --skip-generate
 
 echo "[EventPilot Docker] Starting EventPilot AI application..."
 exec "$@"

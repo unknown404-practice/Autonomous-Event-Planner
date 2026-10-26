@@ -35,6 +35,15 @@ export const VendorCategoryEnum = z.enum([
   "OTHER",
 ]);
 
+export const ProvenanceEnum = z.enum([
+  "USER_ENTERED",
+  "VERIFIED_EXTERNAL",
+  "APPLICATION_CALCULATED",
+  "AI_GENERATED",
+  "DETERMINISTIC_FALLBACK",
+  "SYNTHETIC_DEMO",
+]);
+
 export const RecommendedBudgetItemSchema = z.object({
   category: VendorCategoryEnum,
   description: z.string().min(1),
@@ -83,3 +92,95 @@ export const GeneratedPlanSchema = z.object({
 });
 
 export type GeneratedPlanSchemaType = z.infer<typeof GeneratedPlanSchema>;
+
+export const CreateEventSchema = z.object({
+  eventName: z.string().min(1, "Event name is required"),
+  eventType: z.enum([
+    "WEDDING",
+    "BIRTHDAY",
+    "ANNIVERSARY",
+    "CORPORATE",
+    "CONFERENCE",
+    "COMMUNITY",
+    "FESTIVAL",
+    "DINNER_PARTY",
+    "OTHER",
+  ]),
+  eventDate: z.string().min(1, "Event date is required"),
+  location: z.string().min(1, "Location is required"),
+  guestCount: z.coerce.number().int().positive("Guest count must be at least 1"),
+  totalBudget: z.coerce.number().nonnegative("Budget cannot be negative"),
+  currency: z.string().default("USD"),
+  themeOrStyle: z.string().nullish().transform((v) => v ?? undefined),
+  formality: z.enum(["CASUAL", "SEMI_FORMAL", "FORMAL", "BLACK_TIE"]).optional().default("SEMI_FORMAL"),
+  indoorOutdoor: z.enum(["INDOOR", "OUTDOOR", "HYBRID"]).optional().default("HYBRID"),
+  culturalTraditions: z.string().nullish().transform((v) => v ?? undefined),
+  dietaryNotes: z.string().nullish().transform((v) => v ?? undefined),
+  specialConstraints: z.string().nullish().transform((v) => v ?? undefined),
+});
+
+export const BudgetItemInputSchema = z.object({
+  id: z.string().optional(),
+  category: VendorCategoryEnum,
+  description: z.string().min(1, "Description is required"),
+  estimatedQuantity: z.coerce.number().int().positive().default(1),
+  estimatedUnitCost: z.coerce.number().nonnegative("Unit cost cannot be negative"),
+  taxRatePercent: z.coerce.number().nonnegative().optional().default(0),
+  additionalFees: z.coerce.number().nonnegative().optional().default(0),
+  actualCost: z.coerce.number().nonnegative().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  depositPaid: z.coerce.number().nonnegative().optional().default(0),
+  notes: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  provenance: ProvenanceEnum.optional(),
+});
+
+export const TaskInputSchema = z.object({
+  id: z.string().optional(),
+  title: z.string().min(1, "Task title is required"),
+  description: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  category: z.union([VendorCategoryEnum, z.literal("GENERAL")]).default("GENERAL"),
+  priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).default("MEDIUM"),
+  daysBeforeEvent: z.coerce.number().int().default(30),
+  estimatedDurationHours: z.coerce.number().positive().optional(),
+  dependsOnTaskIds: z.array(z.string()).optional().default([]),
+  assigneeName: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  status: z.enum(["NOT_STARTED", "IN_PROGRESS", "COMPLETED", "BLOCKED", "CANCELLED"]).optional().default("NOT_STARTED"),
+  provenance: ProvenanceEnum.optional(),
+});
+
+export const GuestInputSchema = z.object({
+  id: z.string().optional(),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email().optional().or(z.literal("")).nullish().transform((v) => (!v ? undefined : v)),
+  phone: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  householdGroup: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  rsvpStatus: z.enum(["INVITED", "ATTENDING", "DECLINED", "TENTATIVE"]).default("INVITED"),
+  dietaryRequirements: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  accessibilityNeeds: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  plusOneAllowed: z.boolean().optional().default(false),
+  plusOneName: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  isAttendingPlusOne: z.boolean().optional().default(false),
+  notes: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+});
+
+export const VendorQuoteInputSchema = z.object({
+  id: z.string().optional(),
+  vendorName: z.string().min(1, "Vendor name is required"),
+  category: VendorCategoryEnum,
+  contactPerson: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  contactEmail: z.string().email().optional().or(z.literal("")).nullish().transform((v) => (!v ? undefined : v)),
+  contactPhone: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  status: z.enum([
+    "IDENTIFIED",
+    "INQUIRY_SENT",
+    "QUOTE_RECEIVED",
+    "CONTRACT_PENDING",
+    "DEPOSIT_PAID",
+    "CONFIRMED",
+    "DECLINED",
+  ]).default("QUOTE_RECEIVED"),
+  quotedAmount: z.coerce.number().nonnegative("Quoted amount cannot be negative").default(0),
+  depositRequired: z.coerce.number().nonnegative("Deposit cannot be negative").default(0),
+  cancellationPolicy: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+  notes: z.string().nullish().transform((v) => (v === null || v === undefined ? undefined : v)),
+});

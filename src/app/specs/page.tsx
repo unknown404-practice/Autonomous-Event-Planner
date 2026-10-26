@@ -40,7 +40,7 @@ export default function SpecsPage() {
       title: "Every Feature Must Be Proven",
       status: "VERIFIED",
       details:
-        "29 passing automated tests across 5 unit and integration test suites exercising budget math, timeline math, schema validation, and database CRUD.",
+        "45 passing automated tests across 8 unit and integration test suites exercising budget math, timeline math, schema validation, and database CRUD.",
     },
     {
       num: 5,

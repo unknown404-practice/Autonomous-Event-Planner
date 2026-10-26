@@ -35,6 +35,139 @@ export default async function KitchenCateringSpecsPage({ params }: PageProps) {
   ).length;
   const totalCateringHeadcount = confirmedAttendees + attendingPlusOnes;
 
+  // Dynamic Catering Service Progression based on eventType and dietary requirements
+  const dietaryNoteString =
+    event.dietaryNotes && event.dietaryNotes.trim() !== ""
+      ? `Dietary compliance notice: ${event.dietaryNotes.trim()}.`
+      : "Standard allergen-safe preparation protocols in effect.";
+
+  const themeNote = event.concept?.theme ? `Theme inspiration: ${event.concept.theme}. ` : "";
+  const atmosphereNote = event.concept?.atmosphere ? `Atmosphere: ${event.concept.atmosphere}. ` : "";
+
+  let serviceProgression: Array<{ window: string; course: string; details: string; station: string }> = [];
+
+  if (event.eventType === "CONFERENCE") {
+    serviceProgression = [
+      {
+        window: "08:00 AM - 09:00 AM",
+        course: "Executive Continental Breakfast",
+        details: `Freshly brewed single-origin coffee, cold brew, organic herbal teas, warm artisanal pastries, and seasonal fruit display. ${dietaryNoteString}`,
+        station: "Foyer Coffee Bar",
+      },
+      {
+        window: "10:30 AM - 11:00 AM",
+        course: "Mid-Morning Focus Break",
+        details: "Cold-pressed vitality juices, raw energy bites, and gourmet roasted nut varieties. Hypoallergenic options clearly designated.",
+        station: "Breakout Stations",
+      },
+      {
+        window: "12:30 PM - 01:45 PM",
+        course: "Working Chef's Luncheon",
+        details: `Curated grain & salad bowls with free-range roasted proteins. ${themeNote}${dietaryNoteString}`,
+        station: "Main Dining Hall",
+      },
+      {
+        window: "03:15 PM - 03:45 PM",
+        course: "Afternoon Brain Fuel",
+        details: "Handcrafted dark chocolate treats, nitro cold brew, and sparkling water infusions.",
+        station: "Breakout Stations",
+      },
+      {
+        window: "05:00 PM - 06:30 PM",
+        course: "Networking Reception & Canapés",
+        details: "Passed warm hors d'oeuvres (3 savory varieties), craft beers, and sommelier-selected local wines.",
+        station: "Lounge Terrace",
+      },
+    ];
+  } else if (event.eventType === "BIRTHDAY") {
+    serviceProgression = [
+      {
+        window: "04:30 PM - 05:30 PM",
+        course: "Arrival Mocktails & Savory Bites",
+        details: `Signature celebratory punch, sparkling spritzers, and passed crowd-pleasing finger foods. ${atmosphereNote}`,
+        station: "Welcome Lounge",
+      },
+      {
+        window: "06:00 PM - 07:15 PM",
+        course: "Celebration Feast Service",
+        details: `Gourmet dinner spread adapted for festive gathering. ${themeNote}${dietaryNoteString}`,
+        station: "Main Dining Area",
+      },
+      {
+        window: "07:30 PM - 08:15 PM",
+        course: "Birthday Cake Ceremony & Sweets",
+        details: "Custom celebratory cake presentation, cutting, and plated dessert service with organic coffee & tea.",
+        station: "Celebration Station",
+      },
+      {
+        window: "09:00 PM",
+        course: "Late-Night Snack Board",
+        details: "Warm slider bites, crispy sweet treats, and artisanal late-night refreshments.",
+        station: "Party Floor",
+      },
+    ];
+  } else if (event.eventType === "WEDDING") {
+    serviceProgression = [
+      {
+        window: "04:00 PM - 05:00 PM",
+        course: "Welcome Bar & Canapés",
+        details: `Continuous passed hors d'oeuvres (4 varieties); vintage sparkling wine and craft botanic mocktails. ${atmosphereNote}`,
+        station: "Cocktail Terrace",
+      },
+      {
+        window: "06:15 PM - 06:45 PM",
+        course: "First Course / Plated Salad",
+        details: `Artisanal seasonal baby greens, heirloom citrus, compressed pears, shaved pecorino. Distinct tagged plates for special diets. ${dietaryNoteString}`,
+        station: "Main Pavilion Tables",
+      },
+      {
+        window: "06:45 PM - 07:45 PM",
+        course: "Main Entrée Service",
+        details: `Simultaneous synchronised table drop. Chef's signature dual entrée tailored for wedding banquet. ${themeNote}Strict cross-contamination isolation.`,
+        station: "Main Pavilion Tables",
+      },
+      {
+        window: "08:00 PM - 08:30 PM",
+        course: "Wedding Cake & Cordials",
+        details: "Tiered cake portioning and plated service with organic espresso and loose-leaf herbal teas.",
+        station: "Dessert Station",
+      },
+      {
+        window: "09:30 PM",
+        course: "Midnight Celebration Bites",
+        details: "Warm gourmet sliders, churro bites, and comfort bites for remaining guests.",
+        station: "Lounge Area",
+      },
+    ];
+  } else {
+    serviceProgression = [
+      {
+        window: "05:00 PM - 06:00 PM",
+        course: "Cocktail Hour & Reception",
+        details: `Passed artisanal appetizers and welcoming beverage bar. ${atmosphereNote}`,
+        station: "Reception Lounge",
+      },
+      {
+        window: "06:30 PM - 07:15 PM",
+        course: "Plated First Course",
+        details: `Seasonal starter paired with artisan breads. ${dietaryNoteString}`,
+        station: "Main Banquet Hall",
+      },
+      {
+        window: "07:15 PM - 08:30 PM",
+        course: `${event.formality === "FORMAL" ? "Formal Plated" : "Gourmet Buffet"} Main Course`,
+        details: `Curated main entrée selection. ${themeNote}Strict allergen segregation.`,
+        station: "Main Banquet Hall",
+      },
+      {
+        window: "08:30 PM - 09:15 PM",
+        course: "Dessert & Coffee Service",
+        details: "Plated dessert collection with freshly roasted coffee and herbal tea infusions.",
+        station: "Dessert Buffet",
+      },
+    ];
+  }
+
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 text-slate-900 bg-white min-h-screen">
       {/* Interactive Toolbar (Hidden during Print / PDF generation) */}
@@ -91,7 +224,7 @@ export default async function KitchenCateringSpecsPage({ params }: PageProps) {
           </div>
           <div>
             <span className="font-bold text-slate-500 uppercase">Vendor Crew Meals:</span>
-            <div className="font-semibold">8 Staff Meals (Hot)</div>
+            <div className="font-semibold">{Math.max(2, Math.round(event.guestCount * 0.05))} Staff Meals (Hot)</div>
           </div>
         </div>
       </div>
@@ -106,52 +239,20 @@ export default async function KitchenCateringSpecsPage({ params }: PageProps) {
           <thead>
             <tr className="bg-slate-50 border-b border-slate-300">
               <th className="p-2 border border-slate-300 w-28">Service Window</th>
-              <th className="p-2 border border-slate-300 w-40">Course / Phase</th>
+              <th className="p-2 border border-slate-300 w-44">Course / Phase</th>
               <th className="p-2 border border-slate-300">Kitchen Execution Details</th>
               <th className="p-2 border border-slate-300 w-32">Service Station</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">04:00 PM - 05:00 PM</td>
-              <td className="p-2 border border-slate-200 font-semibold">Welcome Bar & Canapés</td>
-              <td className="p-2 border border-slate-200">
-                Continuous passed hors d'oeuvres (4 varieties); sparkling wine and craft mocktails on arrival.
-              </td>
-              <td className="p-2 border border-slate-200">Cocktail Terrace</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">06:15 PM - 06:45 PM</td>
-              <td className="p-2 border border-slate-200 font-semibold">Salad / First Course</td>
-              <td className="p-2 border border-slate-200">
-                Artisanal seasonal baby greens, compressed pears, shaved pecorino, toasted hazelnuts. Allergen plates tagged.
-              </td>
-              <td className="p-2 border border-slate-200">Main Pavilion Tables</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">06:45 PM - 07:45 PM</td>
-              <td className="p-2 border border-slate-200 font-semibold">Main Entrée Service</td>
-              <td className="p-2 border border-slate-200">
-                Simultaneous table drop. Dual entrée: Pan-seared sea bass / braised beef short rib. Strict separation for special diets.
-              </td>
-              <td className="p-2 border border-slate-200">Main Pavilion Tables</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">08:00 PM - 08:30 PM</td>
-              <td className="p-2 border border-slate-200 font-semibold">Cake Cutting & Coffee</td>
-              <td className="p-2 border border-slate-200">
-                Cake portioning and plated service with organic espresso and loose-leaf herbal teas.
-              </td>
-              <td className="p-2 border border-slate-200">Dessert Station</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">09:30 PM</td>
-              <td className="p-2 border border-slate-200 font-semibold">Late Night Bites</td>
-              <td className="p-2 border border-slate-200">
-                Slider station and warm churro bites for remaining guests.
-              </td>
-              <td className="p-2 border border-slate-200">Lounge Area</td>
-            </tr>
+            {serviceProgression.map((item, idx) => (
+              <tr key={idx} className="border-b border-slate-200">
+                <td className="p-2 border border-slate-200 font-bold">{item.window}</td>
+                <td className="p-2 border border-slate-200 font-semibold">{item.course}</td>
+                <td className="p-2 border border-slate-200">{item.details}</td>
+                <td className="p-2 border border-slate-200">{item.station}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -209,15 +310,15 @@ export default async function KitchenCateringSpecsPage({ params }: PageProps) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs border border-slate-200 p-4">
           <div>
             <div className="font-bold text-slate-700">Server to Table Ratio:</div>
-            <div className="text-slate-600 mt-1">1 Dedicated Server per 12 Guests (Plated)</div>
+            <div className="text-slate-600 mt-1">1 Dedicated Server per {event.formality === "FORMAL" ? 10 : 20} Guests ({event.formality === "FORMAL" ? "Formal Plated" : "Buffet / Casual"})</div>
           </div>
           <div>
             <div className="font-bold text-slate-700">Bartender Stations:</div>
-            <div className="text-slate-600 mt-1">2 Certified Mixologists (Zero Queue Buffer)</div>
+            <div className="text-slate-600 mt-1">{Math.max(1, Math.ceil(event.guestCount / 50))} Certified Mixologist(s) ({Math.max(1, Math.ceil(event.guestCount / 50))} Bar Station{Math.max(1, Math.ceil(event.guestCount / 50)) > 1 ? "s" : ""})</div>
           </div>
           <div>
             <div className="font-bold text-slate-700">Bussing & Clearing Staff:</div>
-            <div className="text-slate-600 mt-1">3 Support Staff for Table Turnover</div>
+            <div className="text-slate-600 mt-1">{Math.max(1, Math.ceil(event.guestCount / 40))} Support Staff for Table Turnover</div>
           </div>
         </div>
       </div>

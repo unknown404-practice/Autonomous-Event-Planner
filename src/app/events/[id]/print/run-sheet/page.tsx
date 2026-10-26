@@ -89,69 +89,38 @@ export default async function VendorRunSheetPage({ params }: PageProps) {
             </tr>
           </thead>
           <tbody>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">08:00 AM</td>
-              <td className="p-2 border border-slate-200">VENUE / ACCESS</td>
-              <td className="p-2 border border-slate-200">Venue doors unlock; power check in banquet hall and exterior lawn.</td>
-              <td className="p-2 border border-slate-200">Venue Manager</td>
-              <td className="p-2 border border-slate-200 text-center">[  ]</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">09:00 AM</td>
-              <td className="p-2 border border-slate-200">DECOR & AV</td>
-              <td className="p-2 border border-slate-200">Lighting rig setup, audio PA system soundcheck, table cross-back chairs positioned.</td>
-              <td className="p-2 border border-slate-200">AV Crew / Decorator</td>
-              <td className="p-2 border border-slate-200 text-center">[  ]</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">11:00 AM</td>
-              <td className="p-2 border border-slate-200">FLORAL</td>
-              <td className="p-2 border border-slate-200">Floral arbor construction and delivery of 15 table centerpieces and personal bouquets.</td>
-              <td className="p-2 border border-slate-200">Lead Florist</td>
-              <td className="p-2 border border-slate-200 text-center">[  ]</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">01:00 PM</td>
-              <td className="p-2 border border-slate-200">CATERING</td>
-              <td className="p-2 border border-slate-200">Catering brigade on-site; prep kitchen verification, ice delivery, bar setup.</td>
-              <td className="p-2 border border-slate-200">Banquet Captain</td>
-              <td className="p-2 border border-slate-200 text-center">[  ]</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">02:30 PM</td>
-              <td className="p-2 border border-slate-200">PHOTOGRAPHY</td>
-              <td className="p-2 border border-slate-200">Photographers arrive for pre-ceremony coverage and environmental venue shots.</td>
-              <td className="p-2 border border-slate-200">Lead Photographer</td>
-              <td className="p-2 border border-slate-200 text-center">[  ]</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">04:00 PM</td>
-              <td className="p-2 border border-slate-200">GUEST ARRIVAL</td>
-              <td className="p-2 border border-slate-200">Doors open to guests; welcome drinks and acoustic background music begin.</td>
-              <td className="p-2 border border-slate-200">Front of House</td>
-              <td className="p-2 border border-slate-200 text-center">[  ]</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">05:00 PM</td>
-              <td className="p-2 border border-slate-200">MAIN PROGRAM</td>
-              <td className="p-2 border border-slate-200">Ceremony / Keynote program starts promptly; sound levels locked.</td>
-              <td className="p-2 border border-slate-200">Coordinator / Sound Tech</td>
-              <td className="p-2 border border-slate-200 text-center">[  ]</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">06:30 PM</td>
-              <td className="p-2 border border-slate-200">DINNER SERVICE</td>
-              <td className="p-2 border border-slate-200">Plated dinner & bar service begins strictly aligned with catering spec sheet.</td>
-              <td className="p-2 border border-slate-200">Executive Chef</td>
-              <td className="p-2 border border-slate-200 text-center">[  ]</td>
-            </tr>
-            <tr className="border-b border-slate-200">
-              <td className="p-2 border border-slate-200 font-bold">10:00 PM</td>
-              <td className="p-2 border border-slate-200">WRAP & LOAD-OUT</td>
-              <td className="p-2 border border-slate-200">Outdoor music curfews in effect; rental breakdown and venue walkthrough.</td>
-              <td className="p-2 border border-slate-200">All Vendors</td>
-              <td className="p-2 border border-slate-200 text-center">[  ]</td>
-            </tr>
+            {!event.tasks || event.tasks.length === 0 ? (
+              <tr>
+                <td colSpan={5} className="p-4 border border-slate-200 text-center text-slate-500">
+                  No scheduled tasks found for this event.
+                </td>
+              </tr>
+            ) : (
+              event.tasks.map((task: any, idx: number) => {
+                // Calculate dynamic schedule time slot
+                const hour = 8 + (idx % 12);
+                const ampm = hour >= 12 ? "PM" : "AM";
+                const displayHour = hour > 12 ? hour - 12 : hour;
+                const timeSlot = `${String(displayHour).padStart(2, "0")}:00 ${ampm}`;
+
+                return (
+                  <tr key={task.id} className="border-b border-slate-200">
+                    <td className="p-2 border border-slate-200 font-bold">{timeSlot}</td>
+                    <td className="p-2 border border-slate-200">{task.category || "GENERAL"}</td>
+                    <td className="p-2 border border-slate-200 font-medium">
+                      {task.title}
+                      {task.description && (
+                        <span className="block text-slate-500 font-normal">{task.description}</span>
+                      )}
+                    </td>
+                    <td className="p-2 border border-slate-200">{task.assigneeName || "Event Team"}</td>
+                    <td className="p-2 border border-slate-200 text-center font-bold">
+                      [ {task.status === "COMPLETED" ? "✓" : " "} ]
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>

@@ -116,10 +116,18 @@ export function calculateBudgetSummary(
         : 0;
   }
 
-  // The operational cost basis: actual costs for finalized items, estimated for unfinalized
-  const activeSpendBasis = totalActual > 0 ? totalActual : totalEstimated;
+  // Operational cost basis: Per-item effective liability
+  // (actualCost if finalized > 0, otherwise estimatedTotal)
+  const totalEffectiveLiability = roundToTwoDecimals(
+    calculatedItems.reduce(
+      (acc, item) => acc + (item.actualTotal > 0 ? item.actualTotal : item.estimatedTotal),
+      0
+    )
+  );
+
+  const activeSpendBasis = totalEffectiveLiability;
   const remainingBudget = roundToTwoDecimals(safeTotalBudget - activeSpendBasis);
-  const variance = roundToTwoDecimals(safeTotalBudget - totalEstimated);
+  const variance = roundToTwoDecimals(safeTotalBudget - totalEffectiveLiability);
   const isOverBudget = activeSpendBasis > safeTotalBudget;
 
   return {

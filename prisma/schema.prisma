@@ -38,10 +38,11 @@ model Event {
   culturalTraditions String?
   dietaryNotes       String?
   specialConstraints String?
-  conceptJson        String?       // JSON string of generated Concept, ColorPalette, Styling
-  contingenciesJson  String?       // JSON string of contingency plans
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  conceptJson            String?       // JSON string of generated Concept, ColorPalette, Styling
+  contingenciesJson      String?       // JSON string of contingency plans
+  vendorRequirementsJson String?       // JSON string of procurement requirements (questions, deliverables, red flags)
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
 
   budgetItems        BudgetItem[]
   tasks              Task[]

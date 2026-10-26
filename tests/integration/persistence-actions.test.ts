@@ -9,11 +9,15 @@ import {
   deleteTask,
   deleteVendorQuote,
   getEventById,
+  getEvents,
   saveVendorQuote,
   updateBudgetItem,
   updateEventDetails,
+  updateGuest,
   updateGuestRsvp,
+  updateTask,
   updateTaskStatus,
+  updateVendorQuote,
 } from "../../src/lib/actions";
 import prisma from "../../src/lib/db";
 import { PlanGenerationInput } from "../../src/lib/types";
@@ -192,6 +196,210 @@ describe("Database & Server Actions Integration Lifecycle", () => {
 
     event = await getEventById(createdEventId);
     expect(event?.guests.find((g) => g.id === guest!.id)).toBeUndefined();
+  });
+
+  it("persists and returns AI vendor procurement requirements (BUG-05)", async () => {
+    const event = await getEventById(createdEventId);
+    expect(event).not.toBeNull();
+    expect(event?.vendorRequirements).toBeDefined();
+    expect(Array.isArray(event?.vendorRequirements)).toBe(true);
+    expect(event!.vendorRequirements.length).toBeGreaterThanOrEqual(2);
+    expect(event!.vendorRequirements[0].category).toBeDefined();
+    expect(event!.vendorRequirements[0].keyQuestionsToAsk.length).toBeGreaterThan(0);
+  });
+
+  it("supports comprehensive editing of tasks, guests, and vendor quotes (BUG-07)", async () => {
+    // 1. Task editing via updateTask
+    const taskAdd = await addTask(createdEventId, {
+      title: "Preliminary Soundcheck",
+      daysBeforeEvent: 20,
+      priority: "LOW",
+    });
+    expect(taskAdd.success).toBe(true);
+    const taskId = taskAdd.task!.id;
+
+    const taskUpdate = await updateTask(taskId, {
+      title: "Critical Soundcheck & Acoustics Validation",
+      priority: "CRITICAL",
+      daysBeforeEvent: 15,
+      assigneeName: "Lead Audio Engineer",
+    });
+    expect(taskUpdate.success).toBe(true);
+
+    let event = await getEventById(createdEventId);
+    const updatedTask = event?.tasks.find((t) => t.id === taskId);
+    expect(updatedTask?.title).toBe("Critical Soundcheck & Acoustics Validation");
+    expect(updatedTask?.priority).toBe("CRITICAL");
+    expect(updatedTask?.daysBeforeEvent).toBe(15);
+    expect(updatedTask?.assigneeName).toBe("Lead Audio Engineer");
+
+    // 2. Guest editing via updateGuest
+    const guestAdd = await addGuest(createdEventId, {
+      firstName: "Jill",
+      lastName: "Valentine",
+      email: "jill@example.com",
+      rsvpStatus: "INVITED",
+      plusOneAllowed: false,
+    });
+    expect(guestAdd.success).toBe(true);
+    const guestId = guestAdd.guest!.id;
+
+    const guestUpdate = await updateGuest(guestId, {
+      lastName: "Valentine-Redfield",
+      rsvpStatus: "ATTENDING",
+      plusOneAllowed: true,
+      plusOneName: "Carlos Oliveira",
+      dietaryRequirements: "Gluten-Free",
+    });
+    expect(guestUpdate.success).toBe(true);
+
+    event = await getEventById(createdEventId);
+    const updatedGuest = event?.guests.find((g) => g.id === guestId);
+    expect(updatedGuest?.lastName).toBe("Valentine-Redfield");
+    expect(updatedGuest?.rsvpStatus).toBe("ATTENDING");
+    expect(updatedGuest?.plusOneAllowed).toBe(true);
+    expect(updatedGuest?.plusOneName).toBe("Carlos Oliveira");
+    expect(updatedGuest?.dietaryRequirements).toBe("Gluten-Free");
+
+    // 3. Vendor quote editing via updateVendorQuote
+    const quoteSave = await saveVendorQuote(createdEventId, {
+      vendorName: "Sonic Stage Rentals",
+      category: "AV_EQUIPMENT",
+      status: "QUOTE_RECEIVED",
+      quotedAmount: 2200,
+      depositRequired: 500,
+    });
+    expect(quoteSave.success).toBe(true);
+    const vendorId = quoteSave.vendor!.id;
+
+    const quoteUpdate = await updateVendorQuote(vendorId, {
+      quotedAmount: 2000,
+      depositRequired: 400,
+      status: "CONTRACT_PENDING",
+      notes: "Negotiated discount applied",
+    });
+    expect(quoteUpdate.success).toBe(true);
+
+    event = await getEventById(createdEventId);
+    const updatedQuote = event?.vendors.find((v) => v.id === vendorId);
+    expect(updatedQuote?.quotedAmount).toBe(2000);
+    expect(updatedQuote?.depositRequired).toBe(400);
+    expect(updatedQuote?.status).toBe("CONTRACT_PENDING");
+    expect(updatedQuote?.notes).toBe("Negotiated discount applied");
+
+    // Clean up created items
+    await deleteTask(taskId);
+    await deleteGuest(guestId);
+    await deleteVendorQuote(vendorId);
+  });
+
+  it("detects and rejects circular task dependencies, invalid references, and impossible schedules (BUG-06)", async () => {
+    // Create Task A (due 25 days before) and Task B (due 20 days before)
+    const taskARes = await addTask(createdEventId, {
+      title: "Venue Contract Signing",
+      daysBeforeEvent: 25,
+    });
+    const taskBRes = await addTask(createdEventId, {
+      title: "Floorplan Draft Design",
+      daysBeforeEvent: 20,
+      dependsOnTaskIds: [taskARes.task!.id],
+    });
+    expect(taskARes.success).toBe(true);
+    expect(taskBRes.success).toBe(true);
+
+    // 1. Updating Task A to depend on Task B creates a cycle: A -> B -> A
+    const cycleRes = await updateTask(taskARes.task!.id, {
+      dependsOnTaskIds: [taskBRes.task!.id],
+    });
+    expect(cycleRes.success).toBe(false);
+    expect(cycleRes.error).toContain("Circular task dependency detected");
+
+    // 2. Self-dependency rejected
+    const selfDepRes = await updateTask(taskARes.task!.id, {
+      dependsOnTaskIds: [taskARes.task!.id],
+    });
+    expect(selfDepRes.success).toBe(false);
+    expect(selfDepRes.error).toContain("Circular task dependency detected");
+
+    // 3. Dependency on non-existent task ID rejected
+    const nonExistentRes = await addTask(createdEventId, {
+      title: "Bogus Task",
+      daysBeforeEvent: 10,
+      dependsOnTaskIds: ["non-existent-task-id-12345"],
+    });
+    expect(nonExistentRes.success).toBe(false);
+    expect(nonExistentRes.error).toContain("Invalid task dependency");
+
+    // 4. Infeasible schedule: dependent task due BEFORE its prerequisite
+    // Task A is due 25 days before. Attempting to add Task C (due 30 days before, i.e. earlier) depending on Task A
+    const infeasibleRes = await addTask(createdEventId, {
+      title: "Premature Dependent Task",
+      daysBeforeEvent: 30,
+      dependsOnTaskIds: [taskARes.task!.id],
+    });
+    expect(infeasibleRes.success).toBe(false);
+    expect(infeasibleRes.error).toContain("Schedule feasibility conflict");
+
+    // Clean up
+    await deleteTask(taskARes.task!.id);
+    await deleteTask(taskBRes.task!.id);
+  });
+
+  it("enforces strict runtime Zod validation on server actions inputs (BUG-09)", async () => {
+    // 1. Negative budget rejected
+    const badEventRes = await createEvent({
+      eventName: "Negative Budget Event",
+      eventType: "CORPORATE",
+      eventDate: "2026-12-01",
+      location: "San Jose",
+      guestCount: 50,
+      totalBudget: -500,
+      currency: "USD",
+    });
+    expect(badEventRes.success).toBe(false);
+
+    // 2. Negative budget item unit cost rejected
+    const badBudgetRes = await addBudgetItem(createdEventId, {
+      category: "CATERING",
+      description: "Invalid Negative Item",
+      estimatedQuantity: 1,
+      estimatedUnitCost: -100,
+    });
+    expect(badBudgetRes.success).toBe(false);
+
+    // 3. Task with empty title rejected
+    const badTaskRes = await addTask(createdEventId, {
+      title: "",
+      daysBeforeEvent: 10,
+    });
+    expect(badTaskRes.success).toBe(false);
+
+    // 4. Vendor quote with negative deposit rejected
+    const badVendorRes = await saveVendorQuote(createdEventId, {
+      vendorName: "Invalid Vendor",
+      category: "FLORIST",
+      status: "QUOTE_RECEIVED",
+      depositRequired: -150,
+    });
+    expect(badVendorRes.success).toBe(false);
+
+    // 5. Guest with empty first name rejected
+    const badGuestRes = await addGuest(createdEventId, {
+      firstName: "",
+      lastName: "Tester",
+      rsvpStatus: "INVITED",
+      plusOneAllowed: false,
+    });
+    expect(badGuestRes.success).toBe(false);
+  });
+
+  it("filters events by current user for tenant data isolation (BUG-04)", async () => {
+    const events = await getEvents();
+    expect(Array.isArray(events)).toBe(true);
+    expect(events.length).toBeGreaterThan(0);
+    const currentEvent = events.find((e) => e.id === createdEventId);
+    expect(currentEvent).toBeDefined();
+    expect(currentEvent?.userId).toBe("usr_demo_organizer_01");
   });
 
   afterAll(async () => {

@@ -19,8 +19,11 @@ import {
   saveVendorQuote,
   updateBudgetItem,
   updateEventDetails,
+  updateGuest,
   updateGuestRsvp,
+  updateTask,
   updateTaskStatus,
+  updateVendorQuote,
 } from "@/lib/actions";
 import {
   saveEventToLocalHistory,
@@ -44,6 +47,7 @@ import {
   CheckCircle2,
   Clock,
   Database,
+  Edit3,
   FileCheck2,
   MapPin,
   Plus,
@@ -69,6 +73,54 @@ export function EventWorkspace({ event }: WorkspaceProps) {
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [modalOpen, setModalOpen] = useState<string | null>(null);
+
+  // Toast Notification State
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  // Edit States for CRUD
+  const [editingBudgetItem, setEditingBudgetItem] = useState<BudgetItemInput | null>(null);
+  const [editingTask, setEditingTask] = useState<{
+    id: string;
+    title: string;
+    description: string;
+    category: string;
+    priority: string;
+    daysBeforeEvent: number;
+    assigneeName: string;
+    dependsOnTaskId: string;
+    status: string;
+  } | null>(null);
+  const [editingVendor, setEditingVendor] = useState<{
+    id: string;
+    vendorName: string;
+    category: VendorCategory;
+    contactPerson: string;
+    contactEmail: string;
+    contactPhone: string;
+    status: VendorStatus;
+    quotedAmount: number;
+    depositRequired: number;
+    cancellationPolicy: string;
+    notes: string;
+  } | null>(null);
+  const [editingGuest, setEditingGuest] = useState<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    householdGroup: string;
+    dietaryRequirements: string;
+    accessibilityNeeds: string;
+    rsvpStatus: string;
+    plusOneAllowed: boolean;
+    plusOneName: string;
+    isAttendingPlusOne: boolean;
+  } | null>(null);
 
   // Budget Modal Form State
   const [newBudgetItem, setNewBudgetItem] = useState<BudgetItemInput>({
@@ -99,6 +151,7 @@ export function EventWorkspace({ event }: WorkspaceProps) {
     category: "VENUE" as VendorCategory,
     contactPerson: "",
     contactEmail: "",
+    contactPhone: "",
     status: "QUOTE_RECEIVED" as VendorStatus,
     quotedAmount: 0,
     depositRequired: 0,
@@ -111,11 +164,14 @@ export function EventWorkspace({ event }: WorkspaceProps) {
     firstName: "",
     lastName: "",
     email: "",
+    phone: "",
     householdGroup: "",
     dietaryRequirements: "",
     accessibilityNeeds: "",
     rsvpStatus: "INVITED" as const,
     plusOneAllowed: false,
+    plusOneName: "",
+    isAttendingPlusOne: false,
   });
 
   // Reschedule Form State
@@ -147,26 +203,103 @@ export function EventWorkspace({ event }: WorkspaceProps) {
       ? Math.round((completedTasksCount / scheduledTasks.length) * 100)
       : 0;
 
+  // Open Edit Dialog Helpers
+  const openEditBudgetItem = (item: any) => {
+    setEditingBudgetItem({
+      id: item.id,
+      category: item.category,
+      description: item.description,
+      estimatedQuantity: item.estimatedQuantity,
+      estimatedUnitCost: item.estimatedUnitCost,
+      taxRatePercent: item.taxRatePercent || 0,
+      additionalFees: item.additionalFees || 0,
+      actualCost: item.actualCost ?? undefined,
+      depositPaid: item.depositPaid || 0,
+      notes: item.notes || "",
+    });
+    setModalOpen("editBudget");
+  };
+
+  const openEditTask = (task: any) => {
+    setEditingTask({
+      id: task.id,
+      title: task.title,
+      description: task.description || "",
+      category: task.category || "GENERAL",
+      priority: task.priority || "MEDIUM",
+      daysBeforeEvent: task.daysBeforeEvent,
+      assigneeName: task.assigneeName || "",
+      dependsOnTaskId: task.dependencies?.[0]?.dependsOnTaskId || "",
+      status: task.status || "NOT_STARTED",
+    });
+    setModalOpen("editTask");
+  };
+
+  const openEditVendor = (v: any) => {
+    setEditingVendor({
+      id: v.id,
+      vendorName: v.vendorName,
+      category: v.category,
+      contactPerson: v.contactPerson || "",
+      contactEmail: v.contactEmail || "",
+      contactPhone: v.contactPhone || "",
+      status: v.status,
+      quotedAmount: v.quotedAmount || 0,
+      depositRequired: v.depositRequired || 0,
+      cancellationPolicy: v.cancellationPolicy || "",
+      notes: v.notes || "",
+    });
+    setModalOpen("editVendor");
+  };
+
+  const openEditGuest = (g: any) => {
+    setEditingGuest({
+      id: g.id,
+      firstName: g.firstName,
+      lastName: g.lastName,
+      email: g.email || "",
+      phone: g.phone || "",
+      householdGroup: g.householdGroup || "",
+      dietaryRequirements: g.dietaryRequirements || "",
+      accessibilityNeeds: g.accessibilityNeeds || "",
+      rsvpStatus: g.rsvpStatus || "INVITED",
+      plusOneAllowed: !!g.plusOneAllowed,
+      plusOneName: g.plusOneName || "",
+      isAttendingPlusOne: !!g.isAttendingPlusOne,
+    });
+    setModalOpen("editGuest");
+  };
+
   // Cancel & Reactivation Handlers
   const handleCancelEvent = async () => {
     setIsCancelling(true);
     const res = await cancelEvent(event.id, cancelReason);
-    if (res.success) {
-      setCurrentStatus("CANCELLED");
-      saveEventToLocalHistory({ ...event, status: "CANCELLED" }, "EVENT_CANCELLED");
-      setModalOpen(null);
+    if (!res.success) {
+      showToast(res.error || "Failed to cancel event", "error");
+      setIsCancelling(false);
+      return;
     }
+    setCurrentStatus("CANCELLED");
+    saveEventToLocalHistory({ ...event, status: "CANCELLED" }, "EVENT_CANCELLED");
+    showToast("Event cancelled. History preserved in SQLite & LocalStorage.");
+    setModalOpen(null);
     setIsCancelling(false);
+    router.refresh();
   };
 
   const handleReactivateEvent = async () => {
     setIsCancelling(true);
     const res = await reactivateEvent(event.id);
-    if (res.success) {
-      setCurrentStatus("PLANNING");
-      saveEventToLocalHistory({ ...event, status: "PLANNING" }, "EVENT_REACTIVATED");
+    if (!res.success) {
+      showToast(res.error || "Failed to reactivate event", "error");
+      setIsCancelling(false);
+      return;
     }
+    setCurrentStatus("PLANNING");
+    saveEventToLocalHistory({ ...event, status: "PLANNING" }, "EVENT_REACTIVATED");
+    showToast("Event reactivated to active planning.");
     setIsCancelling(false);
+    router.refresh();
   };
 
   const handleDeletePermanently = async () => {
@@ -178,18 +311,27 @@ export function EventWorkspace({ event }: WorkspaceProps) {
       return;
     setIsCancelling(true);
     const res = await deleteEvent(event.id);
-    if (res.success) {
-      removeEventFromLocalHistory(event.id);
-      router.push("/");
+    if (!res.success) {
+      showToast(res.error || "Failed to permanently delete event", "error");
+      setIsCancelling(false);
+      return;
     }
+    removeEventFromLocalHistory(event.id);
+    router.push("/");
     setIsCancelling(false);
   };
 
-  // Handlers
+  // Handlers with error inspection and toast feedback
   const handleAddBudgetItem = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    await addBudgetItem(event.id, newBudgetItem);
+    const res = await addBudgetItem(event.id, newBudgetItem);
+    if (!res.success) {
+      showToast(res.error || "Failed to add budget item", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Budget item added successfully");
     setModalOpen(null);
     setNewBudgetItem({
       category: "CATERING",
@@ -202,22 +344,53 @@ export function EventWorkspace({ event }: WorkspaceProps) {
       depositPaid: 0,
     });
     setIsUpdating(false);
+    router.refresh();
+  };
+
+  const handleUpdateBudgetItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingBudgetItem || !editingBudgetItem.id) return;
+    setIsUpdating(true);
+    const res = await updateBudgetItem(editingBudgetItem.id, editingBudgetItem);
+    if (!res.success) {
+      showToast(res.error || "Failed to update budget item", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Budget item updated successfully");
+    setModalOpen(null);
+    setEditingBudgetItem(null);
+    setIsUpdating(false);
+    router.refresh();
   };
 
   const handleDeleteBudgetItem = async (id: string) => {
     if (!confirm("Are you sure you want to delete this budget item?")) return;
     setIsUpdating(true);
-    await deleteBudgetItem(id);
+    const res = await deleteBudgetItem(id);
+    if (!res.success) {
+      showToast(res.error || "Failed to delete budget item", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Budget item deleted");
     setIsUpdating(false);
+    router.refresh();
   };
 
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    await addTask(event.id, {
+    const res = await addTask(event.id, {
       ...newTask,
       dependsOnTaskIds: newTask.dependsOnTaskId ? [newTask.dependsOnTaskId] : [],
     });
+    if (!res.success) {
+      showToast(res.error || "Failed to add task", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Task added successfully");
     setModalOpen(null);
     setNewTask({
       title: "",
@@ -229,32 +402,80 @@ export function EventWorkspace({ event }: WorkspaceProps) {
       dependsOnTaskId: "",
     });
     setIsUpdating(false);
+    router.refresh();
+  };
+
+  const handleUpdateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask) return;
+    setIsUpdating(true);
+    const res = await updateTask(editingTask.id, {
+      title: editingTask.title,
+      description: editingTask.description,
+      category: editingTask.category as any,
+      priority: editingTask.priority as any,
+      daysBeforeEvent: Number(editingTask.daysBeforeEvent),
+      assigneeName: editingTask.assigneeName,
+      dependsOnTaskIds: editingTask.dependsOnTaskId ? [editingTask.dependsOnTaskId] : [],
+      status: editingTask.status as any,
+    });
+    if (!res.success) {
+      showToast(res.error || "Failed to update task", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Task updated successfully");
+    setModalOpen(null);
+    setEditingTask(null);
+    setIsUpdating(false);
+    router.refresh();
   };
 
   const handleToggleTaskStatus = async (taskId: string, currentStatus: string) => {
     const nextStatus = currentStatus === "COMPLETED" ? "NOT_STARTED" : "COMPLETED";
     setIsUpdating(true);
-    await updateTaskStatus(taskId, nextStatus);
+    const res = await updateTaskStatus(taskId, nextStatus);
+    if (!res.success) {
+      showToast(res.error || "Failed to change task status", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast(`Task status updated to ${nextStatus}`);
     setIsUpdating(false);
+    router.refresh();
   };
 
   const handleDeleteTask = async (taskId: string) => {
     if (!confirm("Delete this task?")) return;
     setIsUpdating(true);
-    await deleteTask(taskId);
+    const res = await deleteTask(taskId);
+    if (!res.success) {
+      showToast(res.error || "Failed to delete task", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Task deleted");
     setIsUpdating(false);
+    router.refresh();
   };
 
   const handleSaveVendor = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    await saveVendorQuote(event.id, newVendor);
+    const res = await saveVendorQuote(event.id, newVendor);
+    if (!res.success) {
+      showToast(res.error || "Failed to save vendor quotation", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Vendor quotation saved successfully");
     setModalOpen(null);
     setNewVendor({
       vendorName: "",
       category: "VENUE",
       contactPerson: "",
       contactEmail: "",
+      contactPhone: "",
       status: "QUOTE_RECEIVED",
       quotedAmount: 0,
       depositRequired: 0,
@@ -262,52 +483,125 @@ export function EventWorkspace({ event }: WorkspaceProps) {
       notes: "",
     });
     setIsUpdating(false);
+    router.refresh();
+  };
+
+  const handleUpdateVendor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVendor) return;
+    setIsUpdating(true);
+    const res = await updateVendorQuote(editingVendor.id, editingVendor);
+    if (!res.success) {
+      showToast(res.error || "Failed to update vendor quotation", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Vendor quotation updated successfully");
+    setModalOpen(null);
+    setEditingVendor(null);
+    setIsUpdating(false);
+    router.refresh();
   };
 
   const handleDeleteVendor = async (vendorId: string) => {
     if (!confirm("Are you sure you want to remove this vendor quotation?")) return;
     setIsUpdating(true);
-    await deleteVendorQuote(vendorId);
+    const res = await deleteVendorQuote(vendorId);
+    if (!res.success) {
+      showToast(res.error || "Failed to remove vendor", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Vendor quotation deleted");
     setIsUpdating(false);
+    router.refresh();
   };
 
   const handleAddGuest = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    await addGuest(event.id, newGuest);
+    const res = await addGuest(event.id, newGuest);
+    if (!res.success) {
+      showToast(res.error || "Failed to add guest", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Guest added successfully");
     setModalOpen(null);
     setNewGuest({
       firstName: "",
       lastName: "",
       email: "",
+      phone: "",
       householdGroup: "",
       dietaryRequirements: "",
       accessibilityNeeds: "",
       rsvpStatus: "INVITED",
       plusOneAllowed: false,
+      plusOneName: "",
+      isAttendingPlusOne: false,
     });
     setIsUpdating(false);
+    router.refresh();
+  };
+
+  const handleUpdateGuest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGuest) return;
+    setIsUpdating(true);
+    const res = await updateGuest(editingGuest.id, editingGuest as any);
+    if (!res.success) {
+      showToast(res.error || "Failed to update guest", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Guest details updated successfully");
+    setModalOpen(null);
+    setEditingGuest(null);
+    setIsUpdating(false);
+    router.refresh();
   };
 
   const handleUpdateRsvp = async (guestId: string, status: string) => {
     setIsUpdating(true);
-    await updateGuestRsvp(guestId, status);
+    const res = await updateGuestRsvp(guestId, status);
+    if (!res.success) {
+      showToast(res.error || "Failed to update RSVP status", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast(`RSVP status updated to ${status}`);
     setIsUpdating(false);
+    router.refresh();
   };
 
   const handleDeleteGuest = async (guestId: string) => {
     if (!confirm("Remove this guest?")) return;
     setIsUpdating(true);
-    await deleteGuest(guestId);
+    const res = await deleteGuest(guestId);
+    if (!res.success) {
+      showToast(res.error || "Failed to delete guest", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Guest removed");
     setIsUpdating(false);
+    router.refresh();
   };
 
   const handleReschedule = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsUpdating(true);
-    await updateEventDetails(event.id, { eventDate: rescheduleDate });
+    const res = await updateEventDetails(event.id, { eventDate: rescheduleDate });
+    if (!res.success) {
+      showToast(res.error || "Failed to reschedule event", "error");
+      setIsUpdating(false);
+      return;
+    }
+    showToast("Event rescheduled successfully. Task deadlines recalculated.");
     setModalOpen(null);
     setIsUpdating(false);
+    router.refresh();
   };
 
   const tabs = [
@@ -320,7 +614,36 @@ export function EventWorkspace({ event }: WorkspaceProps) {
   ];
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 relative">
+      {/* Toast Notification (BUG-08) */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            className={`fixed top-5 right-5 z-50 flex items-center gap-2.5 px-4 py-3 rounded-2xl shadow-xl border text-xs font-semibold backdrop-blur-md ${
+              toast.type === "error"
+                ? "bg-rose-50/95 text-rose-900 border-rose-200 dark:bg-rose-950/90 dark:text-rose-200 dark:border-rose-900"
+                : "bg-emerald-50/95 text-emerald-900 border-emerald-200 dark:bg-emerald-950/90 dark:text-emerald-200 dark:border-emerald-900"
+            }`}
+          >
+            {toast.type === "error" ? (
+              <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            )}
+            <span>{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="ml-2 p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-md transition-colors"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Back Link & Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <motion.div whileHover={{ x: -2 }}>
@@ -859,13 +1182,22 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                                 <ProvenanceBadge provenance={item.provenance} />
                               </td>
                               <td className="py-3 px-3 text-right">
-                                <button
-                                  onClick={() => handleDeleteBudgetItem(item.id)}
-                                  className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                                  title="Delete Item"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    onClick={() => openEditBudgetItem(item)}
+                                    className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                    title="Edit Item"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteBudgetItem(item.id)}
+                                    className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                                    title="Delete Item"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           );
@@ -999,12 +1331,22 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                           </div>
                         </div>
 
-                        <button
-                          onClick={() => handleDeleteTask(task.id)}
-                          className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openEditTask(task)}
+                            className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                            title="Edit Task"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteTask(task.id)}
+                            className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                            title="Delete Task"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </div>
                     </motion.div>
                   ))}
@@ -1093,6 +1435,13 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                             {v.status}
                           </span>
                           <button
+                            onClick={() => openEditVendor(v)}
+                            className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                            title="Edit vendor quote"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
                             onClick={() => handleDeleteVendor(v.id)}
                             className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
                             title="Remove vendor quote"
@@ -1126,6 +1475,81 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                       </div>
                     </motion.div>
                   ))}
+                </div>
+              )}
+
+              {/* AI Vendor Procurement Specifications (BUG-05) */}
+              {event.vendorRequirements && event.vendorRequirements.length > 0 && (
+                <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Sparkles className="w-4 h-4 text-indigo-500" />
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                      AI Vendor Procurement Requirements & Due Diligence
+                    </h3>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {event.vendorRequirements.map((req: any, idx: number) => {
+                      const questions = req.keyQuestionsToAsk || req.keyQuestions || [];
+                      const deliverables = req.criticalDeliverables || req.deliverables || [];
+                      const redFlags = req.redFlagsToAvoid || req.redFlags || [];
+                      return (
+                        <div
+                          key={idx}
+                          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 space-y-3"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                              {req.category}
+                            </span>
+                            {req.timing && (
+                              <span className="text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                                {req.timing}
+                              </span>
+                            )}
+                          </div>
+
+                          {questions.length > 0 && (
+                            <div>
+                              <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                Key Questions to Ask:
+                              </div>
+                              <ul className="list-disc list-inside text-[11px] text-slate-600 dark:text-slate-400 space-y-0.5">
+                                {questions.map((q: string, qIdx: number) => (
+                                  <li key={qIdx}>{q}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {deliverables.length > 0 && (
+                            <div>
+                              <div className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                                Critical Deliverables:
+                              </div>
+                              <ul className="list-disc list-inside text-[11px] text-slate-600 dark:text-slate-400 space-y-0.5">
+                                {deliverables.map((d: string, dIdx: number) => (
+                                  <li key={dIdx}>{d}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {redFlags.length > 0 && (
+                            <div>
+                              <div className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 mb-1">
+                                Red Flags to Avoid:
+                              </div>
+                              <ul className="list-disc list-inside text-[11px] text-rose-700 dark:text-rose-300 space-y-0.5">
+                                {redFlags.map((rf: string, rfIdx: number) => (
+                                  <li key={rfIdx}>{rf}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -1253,12 +1677,22 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                               </select>
                             </td>
                             <td className="py-3 px-3 text-right">
-                              <button
-                                onClick={() => handleDeleteGuest(g.id)}
-                                className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => openEditGuest(g)}
+                                  className="p-1 text-slate-400 hover:text-indigo-600 transition-colors"
+                                  title="Edit Guest"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteGuest(g.id)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 transition-colors"
+                                  title="Remove Guest"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1330,9 +1764,13 @@ export function EventWorkspace({ event }: WorkspaceProps) {
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
                   {modalOpen === "budget" && "Add Budget Line Item"}
+                  {modalOpen === "editBudget" && "Edit Budget Line Item"}
                   {modalOpen === "task" && "Add Milestone Task"}
+                  {modalOpen === "editTask" && "Edit Milestone Task"}
                   {modalOpen === "vendor" && "Add Vendor Quote"}
+                  {modalOpen === "editVendor" && "Edit Vendor Quote"}
                   {modalOpen === "guest" && "Add Guest to Roster"}
+                  {modalOpen === "editGuest" && "Edit Guest Details"}
                   {modalOpen === "reschedule" && "Reschedule Master Event"}
                   {modalOpen === "cancelEvent" && "Cancel Master Event"}
                 </h3>
@@ -1470,6 +1908,151 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                 </form>
               )}
 
+              {/* MODAL: EDIT BUDGET */}
+              {modalOpen === "editBudget" && editingBudgetItem && (
+                <form onSubmit={handleUpdateBudgetItem} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Category</label>
+                    <select
+                      value={editingBudgetItem.category}
+                      onChange={(e) =>
+                        setEditingBudgetItem({ ...editingBudgetItem, category: e.target.value as VendorCategory })
+                      }
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                    >
+                      <option value="VENUE">Venue</option>
+                      <option value="CATERING">Catering</option>
+                      <option value="PHOTOGRAPHY">Photography</option>
+                      <option value="FLORIST">Florist</option>
+                      <option value="MUSIC_ENTERTAINMENT">Music & Entertainment</option>
+                      <option value="DECORATION">Decoration</option>
+                      <option value="STATIONERY">Stationery</option>
+                      <option value="CAKE_BAKERY">Cake & Bakery</option>
+                      <option value="AV_EQUIPMENT">AV & Lighting</option>
+                      <option value="OTHER">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Description *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingBudgetItem.description}
+                      onChange={(e) => setEditingBudgetItem({ ...editingBudgetItem, description: e.target.value })}
+                      placeholder="e.g. Acoustic Guitarist for Ceremony"
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Quantity</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={editingBudgetItem.estimatedQuantity}
+                        onChange={(e) =>
+                          setEditingBudgetItem({
+                            ...editingBudgetItem,
+                            estimatedQuantity: Math.max(1, Number(e.target.value)),
+                          })
+                        }
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Unit Cost ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingBudgetItem.estimatedUnitCost}
+                        onChange={(e) =>
+                          setEditingBudgetItem({
+                            ...editingBudgetItem,
+                            estimatedUnitCost: Math.max(0, Number(e.target.value)),
+                          })
+                        }
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Tax Rate (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={editingBudgetItem.taxRatePercent}
+                        onChange={(e) =>
+                          setEditingBudgetItem({
+                            ...editingBudgetItem,
+                            taxRatePercent: Math.max(0, Number(e.target.value)),
+                          })
+                        }
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Deposit ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingBudgetItem.depositPaid}
+                        onChange={(e) =>
+                          setEditingBudgetItem({
+                            ...editingBudgetItem,
+                            depositPaid: Math.max(0, Number(e.target.value)),
+                          })
+                        }
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Actual Cost ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingBudgetItem.actualCost ?? ""}
+                        placeholder="Optional"
+                        onChange={(e) =>
+                          setEditingBudgetItem({
+                            ...editingBudgetItem,
+                            actualCost: e.target.value !== "" ? Math.max(0, Number(e.target.value)) : undefined,
+                          })
+                        }
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalOpen(null);
+                        setEditingBudgetItem(null);
+                      }}
+                      className="px-4 py-2 border rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isUpdating}
+                      className="px-4 py-2 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl font-semibold hover:bg-slate-800 dark:hover:bg-indigo-500"
+                    >
+                      Update Item
+                    </button>
+                  </div>
+                </form>
+              )}
+
               {/* MODAL: TASK */}
               {modalOpen === "task" && (
                 <form onSubmit={handleAddTask} className="space-y-4 text-xs">
@@ -1545,6 +2128,117 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                       className="px-4 py-2 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl font-semibold hover:bg-slate-800 dark:hover:bg-indigo-500"
                     >
                       Create Task
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* MODAL: EDIT TASK */}
+              {modalOpen === "editTask" && editingTask && (
+                <form onSubmit={handleUpdateTask} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Task Title *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingTask.title}
+                      onChange={(e) => setEditingTask({ ...editingTask, title: e.target.value })}
+                      placeholder="e.g. Schedule final floral walkthrough"
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Days Before Event Date *</label>
+                      <input
+                        type="number"
+                        required
+                        value={editingTask.daysBeforeEvent}
+                        onChange={(e) =>
+                          setEditingTask({ ...editingTask, daysBeforeEvent: Number(e.target.value) })
+                        }
+                        placeholder="e.g. 30"
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Status</label>
+                      <select
+                        value={editingTask.status}
+                        onChange={(e) => setEditingTask({ ...editingTask, status: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      >
+                        <option value="NOT_STARTED">Not Started</option>
+                        <option value="IN_PROGRESS">In Progress</option>
+                        <option value="COMPLETED">Completed</option>
+                        <option value="BLOCKED">Blocked</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Priority</label>
+                      <select
+                        value={editingTask.priority}
+                        onChange={(e) => setEditingTask({ ...editingTask, priority: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      >
+                        <option value="LOW">Low</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="HIGH">High</option>
+                        <option value="CRITICAL">Critical</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Prerequisite Task</label>
+                      <select
+                        value={editingTask.dependsOnTaskId}
+                        onChange={(e) => setEditingTask({ ...editingTask, dependsOnTaskId: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      >
+                        <option value="">None (Independent)</option>
+                        {scheduledTasks
+                          .filter((t) => t.id !== editingTask.id)
+                          .map((t) => (
+                            <option key={t.id} value={t.id}>
+                              {t.title}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Assignee Name</label>
+                    <input
+                      type="text"
+                      value={editingTask.assigneeName}
+                      onChange={(e) => setEditingTask({ ...editingTask, assigneeName: e.target.value })}
+                      placeholder="e.g. Lead Coordinator"
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                    />
+                  </div>
+
+                  <div className="pt-4 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalOpen(null);
+                        setEditingTask(null);
+                      }}
+                      className="px-4 py-2 border rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isUpdating}
+                      className="px-4 py-2 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl font-semibold hover:bg-slate-800 dark:hover:bg-indigo-500"
+                    >
+                      Update Task
                     </button>
                   </div>
                 </form>
@@ -1671,6 +2365,130 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                 </form>
               )}
 
+              {/* MODAL: EDIT VENDOR */}
+              {modalOpen === "editVendor" && editingVendor && (
+                <form onSubmit={handleUpdateVendor} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Vendor / Company Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={editingVendor.vendorName}
+                      onChange={(e) => setEditingVendor({ ...editingVendor, vendorName: e.target.value })}
+                      placeholder="e.g. Artisan Bloom Co."
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Category</label>
+                      <select
+                        value={editingVendor.category}
+                        onChange={(e) => setEditingVendor({ ...editingVendor, category: e.target.value as VendorCategory })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      >
+                        <option value="VENUE">Venue</option>
+                        <option value="CATERING">Catering</option>
+                        <option value="PHOTOGRAPHY">Photography</option>
+                        <option value="FLORIST">Florist</option>
+                        <option value="MUSIC_ENTERTAINMENT">Music & Entertainment</option>
+                        <option value="DECORATION">Decoration</option>
+                        <option value="STATIONERY">Stationery</option>
+                        <option value="CAKE_BAKERY">Cake & Bakery</option>
+                        <option value="AV_EQUIPMENT">AV & Lighting</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Status</label>
+                      <select
+                        value={editingVendor.status}
+                        onChange={(e) => setEditingVendor({ ...editingVendor, status: e.target.value as VendorStatus })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      >
+                        <option value="IDENTIFIED">Identified</option>
+                        <option value="INQUIRY_SENT">Inquiry Sent</option>
+                        <option value="QUOTE_RECEIVED">Quote Received</option>
+                        <option value="CONTRACT_PENDING">Contract Pending</option>
+                        <option value="DEPOSIT_PAID">Deposit Paid</option>
+                        <option value="CONFIRMED">Confirmed</option>
+                        <option value="DECLINED">Declined</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Quoted Amount ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingVendor.quotedAmount}
+                        onChange={(e) => setEditingVendor({ ...editingVendor, quotedAmount: Math.max(0, Number(e.target.value)) })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Deposit Required ($)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={editingVendor.depositRequired}
+                        onChange={(e) => setEditingVendor({ ...editingVendor, depositRequired: Math.max(0, Number(e.target.value)) })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Contact Person</label>
+                      <input
+                        type="text"
+                        value={editingVendor.contactPerson}
+                        onChange={(e) => setEditingVendor({ ...editingVendor, contactPerson: e.target.value })}
+                        placeholder="e.g. Sarah Jenkins"
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Contact Email</label>
+                      <input
+                        type="email"
+                        value={editingVendor.contactEmail}
+                        onChange={(e) => setEditingVendor({ ...editingVendor, contactEmail: e.target.value })}
+                        placeholder="e.g. sarah@example.com"
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalOpen(null);
+                        setEditingVendor(null);
+                      }}
+                      className="px-4 py-2 border rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isUpdating}
+                      className="px-4 py-2 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl font-semibold hover:bg-slate-800 dark:hover:bg-indigo-500"
+                    >
+                      Update Vendor Quote
+                    </button>
+                  </div>
+                </form>
+              )}
+
               {/* MODAL: GUEST */}
               {modalOpen === "guest" && (
                 <form onSubmit={handleAddGuest} className="space-y-4 text-xs">
@@ -1744,6 +2562,150 @@ export function EventWorkspace({ event }: WorkspaceProps) {
                       className="px-4 py-2 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl font-semibold hover:bg-slate-800 dark:hover:bg-indigo-500"
                     >
                       Save Guest
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {/* MODAL: EDIT GUEST */}
+              {modalOpen === "editGuest" && editingGuest && (
+                <form onSubmit={handleUpdateGuest} className="space-y-4 text-xs">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">First Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editingGuest.firstName}
+                        onChange={(e) => setEditingGuest({ ...editingGuest, firstName: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Last Name *</label>
+                      <input
+                        type="text"
+                        required
+                        value={editingGuest.lastName}
+                        onChange={(e) => setEditingGuest({ ...editingGuest, lastName: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Email</label>
+                      <input
+                        type="email"
+                        placeholder="e.g. guest@example.com"
+                        value={editingGuest.email}
+                        onChange={(e) => setEditingGuest({ ...editingGuest, email: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Phone</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. +1 555-0123"
+                        value={editingGuest.phone}
+                        onChange={(e) => setEditingGuest({ ...editingGuest, phone: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Household / Seating Group</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Bride Family, Table 4"
+                        value={editingGuest.householdGroup}
+                        onChange={(e) => setEditingGuest({ ...editingGuest, householdGroup: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">RSVP Status</label>
+                      <select
+                        value={editingGuest.rsvpStatus}
+                        onChange={(e) => setEditingGuest({ ...editingGuest, rsvpStatus: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      >
+                        <option value="INVITED">Invited</option>
+                        <option value="ATTENDING">Attending</option>
+                        <option value="DECLINED">Declined</option>
+                        <option value="TENTATIVE">Tentative</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Dietary Requirements</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Vegan, Gluten-Free, Nut Allergy"
+                      value={editingGuest.dietaryRequirements}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, dietaryRequirements: e.target.value })}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Accessibility Needs</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Wheelchair ramp, ground floor seating"
+                      value={editingGuest.accessibilityNeeds}
+                      onChange={(e) => setEditingGuest({ ...editingGuest, accessibilityNeeds: e.target.value })}
+                      className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                    />
+                  </div>
+
+                  <div className="pt-2">
+                    <label className="flex items-center gap-2 cursor-pointer font-semibold text-slate-700 dark:text-slate-300">
+                      <input
+                        type="checkbox"
+                        checked={editingGuest.plusOneAllowed}
+                        onChange={(e) => setEditingGuest({ ...editingGuest, plusOneAllowed: e.target.checked })}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <span>Plus-One Allowed</span>
+                    </label>
+                  </div>
+
+                  {editingGuest.plusOneAllowed && (
+                    <div>
+                      <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Plus-One Name</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Jane Doe"
+                        value={editingGuest.plusOneName}
+                        onChange={(e) => setEditingGuest({ ...editingGuest, plusOneName: e.target.value })}
+                        className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border rounded-xl"
+                      />
+                    </div>
+                  )}
+
+                  <div className="pt-4 flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setModalOpen(null);
+                        setEditingGuest(null);
+                      }}
+                      className="px-4 py-2 border rounded-xl font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isUpdating}
+                      className="px-4 py-2 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl font-semibold hover:bg-slate-800 dark:hover:bg-indigo-500"
+                    >
+                      Update Guest
                     </button>
                   </div>
                 </form>

@@ -115,4 +115,31 @@ describe("Decimal-Safe Budget Arithmetic", () => {
     expect(formatCurrency(1234.5, "USD", "en-US")).toBe("$1,234.50");
     expect(formatCurrency(0, "USD", "en-US")).toBe("$0.00");
   });
+
+  it("calculates effective liability correctly for mixed finalized and estimated items", () => {
+    const items: BudgetItemInput[] = [
+      {
+        category: "STATIONERY",
+        description: "Wedding Invitations",
+        estimatedQuantity: 1,
+        estimatedUnitCost: 500,
+        actualCost: 300,
+      },
+      {
+        category: "PHOTOGRAPHY",
+        description: "Photo Package",
+        estimatedQuantity: 1,
+        estimatedUnitCost: 2000,
+      },
+    ];
+
+    const summary = calculateBudgetSummary(5000, items);
+    // Effective liability = 300 (actual) + 2000 (estimated) = 2300
+    // Remaining budget = 5000 - 2300 = 2700
+    expect(summary.totalActual).toBe(300);
+    expect(summary.totalEstimated).toBe(2500);
+    expect(summary.remainingBudget).toBe(2700);
+    expect(summary.variance).toBe(2700);
+    expect(summary.isOverBudget).toBe(false);
+  });
 });

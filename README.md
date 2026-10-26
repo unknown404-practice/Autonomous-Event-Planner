@@ -9,7 +9,7 @@
 [![Prisma](https://img.shields.io/badge/Prisma-6.3.1-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![Ollama](https://img.shields.io/badge/Ollama-gemma%3A2b-black?style=for-the-badge&logo=ollama&logoColor=white)](https://ollama.ai/)
 [![Docker Ready](https://img.shields.io/badge/Docker-Multi--Stage-2496ED?style=for-the-badge&logo=docker&logoColor=white)](https://www.docker.com/)
-[![Tests Passing](https://img.shields.io/badge/Vitest-39%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![Tests Passing](https://img.shields.io/badge/Vitest-45%20Passed-success?style=for-the-badge&logo=vitest&logoColor=white)](https://vitest.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 ---
@@ -252,7 +252,7 @@ Autonomous-Event-Planner/
         ├── budget-math.test.ts         # Financial arithmetic & allocation integrity tests
         ├── cancel-event-and-localstorage.test.ts # Event cancellation & audit log tests
         ├── number-input-sanitization.test.ts    # Input cleansing & NaN prevention tests
-        ├── openrouter-and-export.test.ts        # Ollama integration & PDF export data tests
+        ├── ollama-and-export.test.ts            # Ollama integration & PDF export data tests
         └── timeline-math.test.ts       # Schedule progression & date sorting tests
 ```
 
@@ -342,11 +342,11 @@ npm run db:studio
 
 ### Test Verification Status:
 - **8 Test Suites**: 100% Passing.
-- **39 Total Tests**:
+- **45 Total Tests**:
   - `budget-math.test.ts`: Verifies exact mathematical allocations and zero-variance enforcement.
   - `timeline-math.test.ts`: Verifies chronological milestone sequencing and duration calculations.
   - `ai-schemas.test.ts`: Verifies strict Zod validation and structured plan parsing.
-  - `openrouter-and-export.test.ts`: Verifies graceful fallback to heuristic planner when Ollama is offline.
+  - `ollama-and-export.test.ts`: Verifies graceful fallback to heuristic planner when Ollama is offline.
   - `cancel-event-and-localstorage.test.ts`: Verifies event cancellation status and audit history logging.
   - `persistence-actions.test.ts`: Verifies full end-to-end CRUD operations on SQLite.
   - `number-input-sanitization.test.ts`: Verifies NaN prevention and strict numerical bounds.
