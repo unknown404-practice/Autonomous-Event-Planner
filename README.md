@@ -114,12 +114,12 @@ Run the single master command for your operating system inside the project root 
 
 #### 🪟 Windows (PowerShell / Command Prompt)
 ```powershell
-ollama pull gemma:2b && docker compose up -d && start http://localhost:3001
+ollama pull gemma:2b && docker compose up -d --build && start http://localhost:3001
 ```
 
 #### 🐧 Linux / 🍎 macOS (Terminal)
 ```bash
-ollama pull gemma:2b && docker compose up -d && (xdg-open http://localhost:3001 2>/dev/null || open http://localhost:3001 2>/dev/null || echo "Open http://localhost:3001")
+ollama pull gemma:2b && docker compose up -d --build && (xdg-open http://localhost:3001 2>/dev/null || open http://localhost:3001 2>/dev/null || echo "Open http://localhost:3001")
 ```
 
 ---
