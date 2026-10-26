@@ -39,13 +39,11 @@ ENV HOSTNAME="0.0.0.0"
 ENV DATABASE_URL="file:/app/data/dev.db"
 
 # Copy runtime artifacts
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
-COPY --from=deps /app/node_modules/.bin ./node_modules/.bin
-COPY --from=deps /app/node_modules/prisma ./node_modules/prisma
-COPY --from=deps /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN chmod +x ./docker-entrypoint.sh
